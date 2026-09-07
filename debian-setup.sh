@@ -546,8 +546,11 @@ fi
 if [[ "$INSTALL_TAILSCALE" == "yes" ]]; then
     info "Instalez Tailscale stable..."
     apt-get install "${APT_OPTS[@]}" tailscale
-    systemctl enable --now tailscaled.service
-    ok "Tailscale instalat și tailscaled pornit."
+    if systemctl enable --now tailscaled.service; then
+        ok "Tailscale instalat și tailscaled pornit."
+    else
+        warn "Tailscale este instalat, dar tailscaled nu a pornit. Verifică /dev/net/tun și jurnalul serviciului, mai ales în LXC."
+    fi
 fi
 
 if [[ "$INSTALL_FAIL2BAN" == "yes" && "$SKIP_FIREWALL" != "yes" ]]; then
