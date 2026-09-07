@@ -38,6 +38,7 @@ TAILSCALE_CIDR="100.64.0.0/10"
 INSTALL_DOCKER=yes
 INSTALL_TAILSCALE=yes
 INSTALL_FAIL2BAN=yes
+INSTALL_AUTO_UPDATES=yes
 RESET_FIREWALL=no
 SKIP_UPGRADE=no
 ALLOW_CURRENT_SSH=no
@@ -63,6 +64,7 @@ Opțiuni:
   --no-docker                Nu instala Docker Engine + Compose plugin
   --no-tailscale             Nu instala Tailscale
   --no-fail2ban              Nu instala/configura Fail2Ban
+  --no-auto-updates          Nu activa unattended-upgrades pentru update-uri de securitate
   --reset-firewall           Resetează regulile UFW existente înainte de configurare
   --allow-current-ssh        Permite explicit IP-ul sesiunii SSH curente
   --skip-upgrade             Nu executa apt full-upgrade
@@ -240,6 +242,10 @@ while [[ $# -gt 0 ]]; do
             INSTALL_FAIL2BAN=no
             shift
             ;;
+        --no-auto-updates)
+            INSTALL_AUTO_UPDATES=no
+            shift
+            ;;
         --reset-firewall)
             RESET_FIREWALL=yes
             shift
@@ -339,6 +345,8 @@ if [[ "$NONINTERACTIVE" != "yes" ]]; then
         && INSTALL_TAILSCALE=yes || INSTALL_TAILSCALE=no
     yes_no "Instalez și configurez Fail2Ban pentru SSH?" y \
         && INSTALL_FAIL2BAN=yes || INSTALL_FAIL2BAN=no
+    yes_no "Activez actualizările automate de securitate?" y \
+        && INSTALL_AUTO_UPDATES=yes || INSTALL_AUTO_UPDATES=no
 fi
 
 if [[ -n "$LAN_CIDR" ]]; then
@@ -383,6 +391,7 @@ echo
 echo "Docker + Compose:       $INSTALL_DOCKER"
 echo "Tailscale:              $INSTALL_TAILSCALE"
 echo "Fail2Ban:               $INSTALL_FAIL2BAN"
+echo "Auto-updates securitate: $INSTALL_AUTO_UPDATES"
 echo "Firewall UFW:            $([[ "$SKIP_FIREWALL" == "yes" ]] && echo 'sarit în LXC neprivilegiat' || echo DA)"
 echo "Reset reguli UFW:        $RESET_FIREWALL"
 echo "Upgrade Debian:          $([[ "$SKIP_UPGRADE" == "yes" ]] && echo NU || echo DA)"
@@ -413,15 +422,20 @@ if [[ "$SKIP_UPGRADE" != "yes" ]]; then
 fi
 
 info "Instalez pachetele de bază..."
-apt-get install "${APT_OPTS[@]}" \
-    ca-certificates \
-    curl \
-    gnupg \
-    iproute2 \
-    openssh-server \
-    python3-minimal \
-    sudo \
+base_packages=(
+    ca-certificates
+    curl
+    gnupg
+    iproute2
+    openssh-server
+    python3-minimal
+    sudo
     ufw
+)
+if [[ "$INSTALL_AUTO_UPDATES" == "yes" ]]; then
+    base_packages+=(unattended-upgrades)
+fi
+apt-get install "${APT_OPTS[@]}" "${base_packages[@]}"
 ok "Pachetele de bază sunt instalate."
 
 # Dacă sesiunea SSH curentă nu este în una dintre rețelele configurate,
@@ -439,6 +453,41 @@ if [[ "$SKIP_FIREWALL" != "yes" && -n "$SSH_SOURCE_IP" && "$ALLOW_CURRENT_SSH" !
         die "Sesiunea SSH curentă ($SSH_SOURCE_IP) nu este acoperită de regulile propuse. Configurează CIDR-ul corect, rulează din consolă sau folosește explicit --allow-current-ssh."
     fi
 fi
+
+configure_auto_updates() {
+    if [[ "$INSTALL_AUTO_UPDATES" != "yes" ]]; then
+        return 0
+    fi
+
+    info "Configurez actualizările automate de securitate..."
+
+    cat >/etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+EOF
+
+    cat >/etc/apt/apt.conf.d/52-bootstrap-security <<'EOF'
+# Actualizări automate limitate la Debian Security.
+Unattended-Upgrade::Origins-Pattern {
+    "origin=Debian,codename=${distro_codename},label=Debian-Security";
+    "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+};
+
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Automatic-Reboot "false";
+EOF
+
+    systemctl enable --now apt-daily.timer 2>/dev/null \
+        || warn "Nu am putut activa apt-daily.timer."
+    systemctl enable --now apt-daily-upgrade.timer 2>/dev/null \
+        || warn "Nu am putut activa apt-daily-upgrade.timer."
+    ok "Actualizările automate de securitate sunt activate."
+}
+
+configure_auto_updates
 
 setup_docker_repository() {
     info "Configurez repository-ul oficial Docker stable..."
@@ -646,6 +695,14 @@ if [[ "$SKIP_FIREWALL" != "yes" ]]; then
     echo
     echo "--- UFW ---"
     ufw status verbose || true
+fi
+
+if [[ "$INSTALL_AUTO_UPDATES" == "yes" ]]; then
+    echo
+    echo "--- Automatic security updates ---"
+    systemctl is-enabled apt-daily.timer 2>/dev/null || true
+    systemctl is-enabled apt-daily-upgrade.timer 2>/dev/null || true
+    systemctl list-timers apt-daily.timer apt-daily-upgrade.timer --no-pager 2>/dev/null || true
 fi
 
 if [[ "$INSTALL_FAIL2BAN" == "yes" && "$SKIP_FIREWALL" != "yes" ]]; then

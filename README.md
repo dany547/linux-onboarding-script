@@ -11,6 +11,7 @@ Scriptul:
 - instalează Tailscale din repository-ul oficial stable;
 - instalează și configurează UFW;
 - configurează Fail2Ban pentru SSH;
+- activează actualizări automate limitate la Debian Security;
 - aplică un baseline SSH minimal:
   - dezactivează parolele goale;
   - dezactivează X11 forwarding;
@@ -96,6 +97,7 @@ Pentru `--wireguard-cidr`, folosește subnetul WireGuard văzut de serverul țin
 --no-docker                Nu instala Docker și Compose
 --no-tailscale             Nu instala Tailscale
 --no-fail2ban              Nu instala Fail2Ban
+--no-auto-updates          Nu activa actualizările automate de securitate
 --reset-firewall           Resetează regulile UFW existente
 --allow-current-ssh        Permite explicit IP-ul sesiunii SSH curente
 --skip-upgrade             Nu executa apt full-upgrade
@@ -103,6 +105,18 @@ Pentru `--wireguard-cidr`, folosește subnetul WireGuard văzut de serverul țin
 ```
 
 `--reset-firewall` șterge regulile UFW existente. Folosește-l doar pe servere pregătite pentru bootstrap sau după ce ai verificat configurația actuală.
+
+## Actualizări automate
+
+Implicit, scriptul activează `unattended-upgrades` pentru actualizări automate de securitate Debian. Nu activează reboot automat.
+
+Pachetele Docker și Tailscale sunt instalate din repository-urile lor stable, dar nu sunt actualizate automat de regula de securitate Debian. Aceste actualizări pot schimba versiuni de runtime sau pot reporni servicii, deci se fac controlat printr-o rulare ulterioară a bootstrap-ului sau prin politica proprie de mentenanță.
+
+Pentru a dezactiva funcția:
+
+```bash
+sudo bash debian-setup.sh --mode lan --no-auto-updates
+```
 
 ## LXC
 
