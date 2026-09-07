@@ -565,6 +565,7 @@ configure_ssh() {
     local had_config=no
 
     mkdir -p /etc/ssh/sshd_config.d
+    install -d -m 0755 /run/sshd
     backup_file="$(mktemp)"
 
     if [[ -f "$config_file" ]]; then
