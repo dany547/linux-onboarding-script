@@ -13,8 +13,9 @@ files in `/home/dan/CODE/scripts` remain untouched.
 - `v2.7.0`: explicit component choice precedence fixed, opt-in conservative wizard,
   read-only inventory, independent SSH/firewall preservation, EOF/conflict guards,
   no-op selection without APT and focused regression coverage.
-- GitHub push attempted once and rejected with HTTP 403 (repository permission).
-  Commits and tags remain local; no authentication or account settings changed.
+- Published `main`, `v2.6.0` and `v2.7.0` via the existing GitHub SSH identity.
+  HTTPS attempts used unsuitable credentials/scopes; no additional OAuth scope
+  or account permission was needed. Release authors use GitHub noreply email.
 - Remaining stages below are a roadmap, not implemented promises. Timed access
   rollback, reconnection proof, durable plans/resume/locking and full host-health
   and firewall-backend checks are not implemented; no real-VM validation performed.

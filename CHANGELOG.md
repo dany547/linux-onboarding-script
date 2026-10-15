@@ -30,7 +30,8 @@ at legacy defaults) can upgrade preserved components.
 Remaining: timed SSH/firewall rollback and new-connection confirmation, durable
 resume/locking, saved wizard plans, advanced/back/help navigation, complete host
 health and conflicting firewall ownership checks. Real-VM validation has not run.
-GitHub publication is currently blocked by HTTP 403; commits/tags are local only.
+Published to GitHub via SSH after HTTPS credential/scope restrictions were
+identified. Release commits use the GitHub noreply address.
 
 ## 2.6.0
 
