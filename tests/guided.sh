@@ -22,7 +22,7 @@ def run(code, expected='', rc=0, stdin=''):
     passed += 1
 
 # No implicit execution when sourced; CLI/config sources suppress questions.
-run('printf "%s" "$VERSION"', '2.7.1')
+run('printf "%s" "$VERSION"', '2.8.0')
 run('parse_args --no-docker --no-tailscale --no-fail2ban --no-auto-updates; '
     'yes_no() { return 99; }; resolve_feature_flags; '
     'printf "%s" "$INSTALL_DOCKER:$INSTALL_TAILSCALE:$INSTALL_FAIL2BAN:$INSTALL_AUTO_UPDATES"',

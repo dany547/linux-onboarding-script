@@ -1,10 +1,16 @@
-# debian-setup.sh — Debian/Ubuntu server bootstrap
+# Linux onboarding — Debian, Ubuntu and Alpine
 
-One self-contained Bash script: `apt full-upgrade`, Docker Engine + Compose plugin,
-Tailscale, UFW, Fail2Ban, SSH hardening and Debian/Ubuntu security auto-updates —
-with SSH access checks before firewall activation.
+The Debian/Ubuntu Bash backend provides Docker Engine + Compose, Tailscale, UFW,
+Fail2Ban, SSH hardening, security auto-updates and optional system upgrades, with
+SSH access checks before firewall activation. The separate Alpine backend uses
+POSIX sh, APK and OpenRC, with the narrower capabilities listed below.
 
 Repository: https://github.com/dany547/linux-onboarding-script
+
+Use `sh setup.sh` as the portable entry point. It selects the Debian/Ubuntu Bash
+backend or the Alpine POSIX-shell backend; Alpine does not require Bash. Existing
+Debian/Ubuntu invocations of `bash debian-setup.sh` remain supported. The options
+below describe Debian/Ubuntu unless the Alpine section explicitly says otherwise.
 
 ## What it does
 
@@ -48,7 +54,8 @@ of `ports:`.
 | Debian/Ubuntu derivatives (`ID_LIKE`) | accepted with an "untested combination" warning |
 | Other codenames on a derivative | warning (repos may lack the suite) |
 | Unknown codename on Debian/Ubuntu, Debian ≠12/13, Ubuntu ≠22.04/24.04 | refused, exit 3 |
-| RHEL family, Arch, Alpine, anything else | refused, exit 3 |
+| Alpine 3.24.x (latest stable checked: 3.24.2) | separate APK/OpenRC backend; see Alpine capabilities and validation below |
+| RHEL family, Arch, anything else | refused, exit 3 |
 | Proxmox VE host (`pveversion` found) | refused, exit 3 |
 | Unprivileged LXC | UFW/Fail2Ban installation and configuration are skipped in the guest; existing installations remain unchanged — review host/infrastructure protection |
 
@@ -92,6 +99,57 @@ sudo bash debian-setup.sh -y --config examples/vps-fleet.conf   # admin user + k
 ```
 
 `--dry-run` as a normal user additionally needs `DS_ROOT_OK=1`.
+
+## Alpine Linux 3.24 stable
+
+The stable branch and patch were checked against the official
+[Alpine release list](https://alpinelinux.org/releases/) and
+[v3.24 release metadata](https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/latest-releases.yaml):
+**3.24.2**. This is a tested branch target, not a promise to accept future stable
+branches or Alpine edge automatically.
+
+```sh
+# On Alpine, as a normal user; no Bash installation needed:
+sh setup.sh --inspect
+sh alpine-setup.sh --help
+sh setup.sh --wizard --dry-run
+
+# Explicit package choices; preview first:
+sh setup.sh --dry-run -y --config examples/alpine.conf
+# Then, from a root shell on a BOOTED Alpine/OpenRC system:
+sh setup.sh -y --config examples/alpine.conf
+```
+
+| Alpine capability | Behavior in 2.8.0 |
+|---|---|
+| Docker Engine + Compose | Opt in with `--docker` or `INSTALL_DOCKER=yes`; APK packages and OpenRC `docker` service |
+| Tailscale | Opt in with `--tailscale` or `INSTALL_TAILSCALE=yes`; OpenRC `tailscale` service; run `tailscale up` manually as root |
+| Discovery / wizard / preview | `--inspect`, `--wizard`, `--dry-run`; all choices default to preserve |
+| Config files | Validated `KEY=value` data; CLI wins regardless of argument order; use `examples/alpine.conf`, not Debian fleet configs |
+| Full package upgrade | Explicit `--upgrade` only; default is `--skip-upgrade`; may affect all installed services |
+| SSH, firewall, Fail2Ban, users, auto-updates | Preserve-only; requests to configure these are rejected before package/service changes |
+
+**`--mode lan` / `--mode vps` is informational on Alpine, not an access-control
+policy.** This backend does not close public SSH or establish a firewall. Retain
+and independently review existing host/provider protection. It does not implement
+security-only automatic APK upgrades and will not replace them with an unsafe
+cron job. All-preserved runs require no root, create no log and run no APK commands.
+Applying selected services requires root and a booted OpenRC system; a minimal
+container/chroot can inspect and preview, but is deliberately refused for apply.
+`--upgrade` may run package maintainer scripts, so preserve does not exempt a
+component from a separately requested full system upgrade.
+
+Alpine uses its own signed APK repositories and OpenRC service scripts, not APT,
+Debian repositories, systemd, or remote installer scripts. The Debian/Ubuntu
+backend remains separate to avoid changing working platform behavior.
+
+**Validation boundary:** official Alpine 3.24.2 x86_64 minirootfs was downloaded
+and SHA256-verified. Package installation and CLI versions for Docker/Compose,
+Tailscale and OpenSSH were checked in an isolated, rootless chroot. This does
+**not** prove boot-time service activation, Docker daemon operation, VPN login or
+remote SSH/firewall safety on a booted Alpine VM. See
+[docs/ALPINE-VALIDATION.md](docs/ALPINE-VALIDATION.md) for evidence and remaining
+booted-VM checks.
 
 ## Flags
 

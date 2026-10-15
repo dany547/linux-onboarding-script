@@ -1,5 +1,11 @@
 # TEST-VM — verificare manuală pe VM real
 
+> Historical Debian/Ubuntu checklist (Romanian). Since v2.7.1 the script's output
+> is English; interpret older quoted messages by meaning, not exact spelling.
+> Alpine has separate capabilities and validation requirements: see
+> [ALPINE-VALIDATION.md](ALPINE-VALIDATION.md). Do not apply this APT/systemd
+> checklist to Alpine or claim booted-VM coverage from its chroot tests.
+
 Tot ce e aici e **[MANUAL]** — nu e acoperit de `tests/run.sh` (care rulează fără root/rețea). Fă un snapshot VM înainte de fiecare scenariu.
 
 Pre-check pe laptop, înainte de upload:

@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Keep the legacy filename usable on Alpine when Bash is already installed.
+# Alpine users without Bash should invoke the portable setup.sh launcher.
+if [[ "${BASH_SOURCE[0]}" == "$0" && -r /etc/alpine-release ]]; then
+    alpine_backend="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/alpine-setup.sh"
+    if [[ ! -r "$alpine_backend" ]]; then
+        printf '%s\n' '[ERROR] Alpine requires alpine-setup.sh; clone the complete repository and run sh setup.sh.' >&2
+        exit 3
+    fi
+    exec sh "$alpine_backend" "$@"
+fi
+
 # ============================================================
 # Debian/Ubuntu server bootstrap — Docker, Compose, UFW,
 # Fail2Ban, Tailscale și SSH privat.
@@ -57,7 +68,7 @@ set -Eeuo pipefail
 #   test cu DS_TEST=1; la rulare reală, orice DS_* de test setat => exit 2.
 # ============================================================
 
-VERSION="2.7.1"
+VERSION="2.8.0"
 LOG_FILE="/var/log/debian-setup.log"
 LOG_FD=""
 

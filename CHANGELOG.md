@@ -3,6 +3,33 @@
 Versions follow Semantic Versioning. Git tags use the `vMAJOR.MINOR.PATCH` format.
 A version in this file is not a claim of production or real-VM validation.
 
+## 2.8.0
+
+Add an **initial, deliberately limited Alpine backend**, not Debian/Ubuntu feature
+parity. Target: Alpine stable 3.24.x (official latest patch checked: 3.24.2).
+
+- Add portable `sh setup.sh` dispatch and standalone POSIX/BusyBox-ash
+  `alpine-setup.sh`; Alpine needs no Bash. The legacy Bash filename forwards to
+  the Alpine backend when executed on a real Alpine host with Bash installed.
+- Support explicit Docker/Compose and Tailscale installation using signed Alpine
+  APK repositories and OpenRC (`docker` / `tailscale`), without foreign repos.
+- Add read-only discovery, validated data-only configuration files, CLI precedence,
+  conservative wizard, previews and true no-op preservation without root/log/APK.
+- Preserve SSH/firewall/auth/users/Fail2Ban/auto-update policy. Unsupported positive
+  requests fail before package/service changes; `--mode` does not enforce network
+  restrictions on Alpine. No security-only automatic APK updater is claimed.
+- Full `apk upgrade` is opt-in. Reject edge, mixed/unknown branches and missing
+  untagged stable main/community repositories; never rewrite repositories.
+- Refuse service apply without a booted OpenRC system, before creating logs or
+  running APK. Do not restart services already running or already enabled.
+- Add independent POSIX backend/launcher regressions, an Alpine example and CI
+  smoke checks on official Alpine 3.24.2 userspace.
+
+Validation includes actual BusyBox ash and successful package/CLI installation in
+a SHA256-verified, isolated Alpine 3.24.2 x86_64 rootfs. No booted-VM, Docker daemon,
+VPN login, reboot persistence or remote access-safety validation is claimed. See
+`docs/ALPINE-VALIDATION.md`. Future stable branches require fresh validation.
+
 ## 2.7.1
 
 - Translate all Debian/Ubuntu errors, warnings, progress messages, prompts, help,

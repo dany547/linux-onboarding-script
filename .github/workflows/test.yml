@@ -17,8 +17,26 @@ jobs:
           bash -n debian-setup.sh
           bash -n tests/run.sh
           bash -n tests/guided.sh
+          sh -n setup.sh
+          sh -n alpine-setup.sh
+          sh -n tests/alpine.sh
+          sh -n tests/launcher.sh
           shellcheck debian-setup.sh tests/guided.sh
+          shellcheck -s sh setup.sh alpine-setup.sh tests/alpine.sh tests/launcher.sh
       - name: Mocked regression suite (no real host setup)
         run: |
           bash tests/run.sh
           bash tests/guided.sh
+          sh tests/alpine.sh
+          sh tests/launcher.sh
+      - name: Alpine 3.24.2 BusyBox ash smoke (isolated container)
+        run: |
+          docker run --rm -v "$PWD:/work:ro" -w /work alpine:3.24.2 sh -ec '
+            sh -n setup.sh
+            sh -n alpine-setup.sh
+            sh tests/alpine.sh
+            sh tests/launcher.sh
+            sh setup.sh --version
+            sh setup.sh --inspect
+            sh setup.sh --dry-run -y --mode lan --no-docker --no-tailscale --no-ssh --no-firewall --no-fail2ban --no-auto-updates --skip-upgrade
+          '

@@ -16,6 +16,12 @@ files in `/home/dan/CODE/scripts` remain untouched.
 - Published `main`, `v2.6.0` and `v2.7.0` via the existing GitHub SSH identity.
   HTTPS attempts used unsuitable credentials/scopes; no additional OAuth scope
   or account permission was needed. Release authors use GitHub noreply email.
+- `v2.7.1`: all script-owned user-facing text translated to English, with the
+  208 legacy checks retained and 37 guided checks passing.
+- `v2.8.0`: additive POSIX launcher and limited Alpine 3.24.x APK/OpenRC backend
+  for explicit Docker/Compose/Tailscale choices. SSH/firewall/auth/users/automatic
+  updates remain preserve-only on Alpine; unsupported requests fail early.
+  See `ALPINE-VALIDATION.md` for actual userspace/package evidence and VM gaps.
 - Remaining stages below are a roadmap, not implemented promises. Timed access
   rollback, reconnection proof, durable plans/resume/locking and full host-health
   and firewall-backend checks are not implemented; no real-VM validation performed.
