@@ -57,7 +57,7 @@ set -Eeuo pipefail
 #   test cu DS_TEST=1; la rulare reală, orice DS_* de test setat => exit 2.
 # ============================================================
 
-VERSION="2.6.0"
+VERSION="2.7.0"
 LOG_FILE="/var/log/debian-setup.log"
 LOG_FD=""
 
@@ -80,6 +80,11 @@ PRINT_CONFIG=no
 PRINT_VERSION=no
 STRICT=no
 CONFIG_FILE=""
+WIZARD=no
+INSPECT=no
+MANAGE_SSH=yes
+# Only explicit CLI/config choices suppress wizard questions.
+declare -A CHOICE_SOURCE=()
 
 MODE=""
 LAN_CIDR=""
@@ -134,6 +139,8 @@ CONFIG_KEYS=(
     WIREGUARD_IFACE
     TAILSCALE_CIDR
     TAILSCALE_IPV6_CIDR
+    MANAGE_SSH
+    SKIP_FIREWALL
     INSTALL_DOCKER
     INSTALL_TAILSCALE
     INSTALL_FAIL2BAN
@@ -351,6 +358,10 @@ Opțiuni:
   --print-config             Afișează configurația efectivă (KEY=value) și iese
   --dry-run                  Afișează planul complet (comenzi, fișiere, reguli UFW)
                              fără nicio mutație; merge și ca non-root cu DS_ROOT_OK=1
+  --inspect                  Inventar read-only; fără root, log sau modificări
+  --wizard                   Asistent conservator; păstrează implicit serviciile existente
+  --no-ssh                   Nu modifica configurația serviciului SSH
+  --no-firewall              Nu instala/configura UFW sau integrarea Fail2Ban-UFW
   --no-docker                Nu instala Docker Engine + Compose plugin
   --no-tailscale             Nu instala Tailscale
   --no-fail2ban              Nu instala/configura Fail2Ban
@@ -415,10 +426,10 @@ yes_no() {
     fi
 
     if [[ "$default" == "y" ]]; then
-        read -r -p "$prompt [Y/n]: " answer
+        read -r -p "$prompt [Y/n]: " answer || die 2 "Intrare închisă; configurare anulată fără aplicare."
         answer="${answer:-y}"
     else
-        read -r -p "$prompt [y/N]: " answer
+        read -r -p "$prompt [y/N]: " answer || die 2 "Intrare închisă; configurare anulată fără aplicare."
         answer="${answer:-n}"
     fi
 
@@ -707,11 +718,16 @@ print_plan_summary() {
     echo "Tailscale:              $INSTALL_TAILSCALE"
     echo "Fail2Ban:               $INSTALL_FAIL2BAN"
     echo "Auto-updates securitate: $INSTALL_AUTO_UPDATES"
-    echo "Firewall UFW:            $([[ "$SKIP_FIREWALL" == "yes" ]] && echo 'sarit în LXC neprivilegiat' || echo DA)"
+    echo "Configurație SSH:        $MANAGE_SSH"
+    echo "Firewall UFW:            $([[ "$SKIP_FIREWALL" == "yes" ]] && echo 'PĂSTREAZĂ (omis explicit / restricții container)' || echo DA)"
     echo "Reset reguli UFW:        $RESET_FIREWALL"
     echo "Upgrade Debian:          $([[ "$SKIP_UPGRADE" == "yes" ]] && echo NU || echo DA)"
     echo "Port SSH:                $SSH_PORT"
-    echo "SSH permis din:          ${SSH_CIDRS[*]}"
+    if [[ "$SKIP_FIREWALL" == "yes" ]]; then
+        echo "Acces SSH firewall:      PĂSTRAT (reguli existente, neverificate)"
+    else
+        echo "SSH permis din:          ${SSH_CIDRS[*]}"
+    fi
     echo "Sesiune SSH detectată:   $SSH_SESSION_IS_SSH"
     if [[ -n "$WIREGUARD_IFACE" ]]; then
         echo "Interfață WireGuard:     $WIREGUARD_IFACE"
@@ -923,7 +939,7 @@ load_config() {
                 [[ "$value" == "yes" || "$value" == "no" ]] \
                     || die 2 "$key trebuie să fie yes sau no (în $file)."
                 ;;
-            INSTALL_DOCKER|INSTALL_TAILSCALE|INSTALL_FAIL2BAN|INSTALL_AUTO_UPDATES|RESET_FIREWALL|SKIP_UPGRADE|ALLOW_CURRENT_SSH)
+            MANAGE_SSH|SKIP_FIREWALL|INSTALL_DOCKER|INSTALL_TAILSCALE|INSTALL_FAIL2BAN|INSTALL_AUTO_UPDATES|RESET_FIREWALL|SKIP_UPGRADE|ALLOW_CURRENT_SSH)
                 [[ "$value" == "yes" || "$value" == "no" ]] \
                     || die 2 "$key trebuie să fie yes sau no (în $file)."
                 ;;
@@ -933,6 +949,7 @@ load_config() {
         esac
 
         printf -v "$key" '%s' "$value"
+        CHOICE_SOURCE["$key"]=config
     done <"$file"
 
     log_write INFO "Configurație încărcată din $file"
@@ -995,20 +1012,42 @@ parse_args() {
                 PRINT_VERSION=yes
                 shift
                 ;;
+            --inspect)
+                INSPECT=yes
+                shift
+                ;;
+            --wizard)
+                WIZARD=yes
+                shift
+                ;;
+            --no-ssh)
+                MANAGE_SSH=no
+                CHOICE_SOURCE[MANAGE_SSH]=cli
+                shift
+                ;;
+            --no-firewall)
+                SKIP_FIREWALL=yes
+                CHOICE_SOURCE[SKIP_FIREWALL]=cli
+                shift
+                ;;
             --no-docker)
                 INSTALL_DOCKER=no
+                CHOICE_SOURCE[INSTALL_DOCKER]=cli
                 shift
                 ;;
             --no-tailscale)
                 INSTALL_TAILSCALE=no
+                CHOICE_SOURCE[INSTALL_TAILSCALE]=cli
                 shift
                 ;;
             --no-fail2ban)
                 INSTALL_FAIL2BAN=no
+                CHOICE_SOURCE[INSTALL_FAIL2BAN]=cli
                 shift
                 ;;
             --no-auto-updates)
                 INSTALL_AUTO_UPDATES=no
+                CHOICE_SOURCE[INSTALL_AUTO_UPDATES]=cli
                 shift
                 ;;
             --reset-firewall)
@@ -1021,6 +1060,7 @@ parse_args() {
                 ;;
             --skip-upgrade)
                 SKIP_UPGRADE=yes
+                CHOICE_SOURCE[SKIP_UPGRADE]=cli
                 shift
                 ;;
             --docker-pool)
@@ -1121,7 +1161,7 @@ check_proxmox() {
 
 resolve_mode() {
     if [[ -z "$MODE" ]]; then
-        if [[ "$DRY_RUN" == "yes" ]]; then
+        if [[ "$DRY_RUN" == "yes" && "$WIZARD" != "yes" ]]; then
             MODE=lan
             info "DRY-RUN fără --mode: folosesc implicit lan (schimbă cu --mode)."
         elif [[ "$NONINTERACTIVE" == "yes" ]]; then
@@ -1130,7 +1170,7 @@ resolve_mode() {
             echo "Unde rulează această mașină?"
             echo "  1) LAN — SSH din rețeaua locală și VPN"
             echo "  2) VPS — SSH doar din VPN"
-            read -r -p "Alege [1]: " mode_answer
+            read -r -p "Alege [1]: " mode_answer || die 2 "Intrare închisă; configurare anulată fără aplicare."
             mode_answer="${mode_answer:-1}"
             case "$mode_answer" in
                 1) MODE=lan ;;
@@ -1146,10 +1186,11 @@ resolve_mode() {
 
 resolve_lan_cidr() {
     if [[ -z "$LAN_CIDR" && "$MODE" == "lan" ]]; then
-        if [[ "$DRY_RUN" == "yes" || "$NONINTERACTIVE" == "yes" ]]; then
+        if [[ "$DRY_RUN" == "yes" && "$WIZARD" != "yes" || "$NONINTERACTIVE" == "yes" ]]; then
             LAN_CIDR="$DETECTED_LAN_CIDR"
         else
-            read -r -p "CIDR LAN [${DETECTED_LAN_CIDR:-ex. 192.168.1.0/24}]: " LAN_CIDR
+            read -r -p "CIDR LAN [${DETECTED_LAN_CIDR:-ex. 192.168.1.0/24}]: " LAN_CIDR \
+                || die 2 "Intrare închisă; configurare anulată fără aplicare."
             LAN_CIDR="${LAN_CIDR:-$DETECTED_LAN_CIDR}"
         fi
     fi
@@ -1162,9 +1203,10 @@ resolve_lan_cidr() {
 resolve_wireguard_cidr() {
     if [[ -n "$WIREGUARD_CIDR" ]]; then
         valid_cidr "$WIREGUARD_CIDR" || die "WireGuard CIDR invalid: $WIREGUARD_CIDR"
-    elif [[ "$DRY_RUN" != "yes" && "$NONINTERACTIVE" != "yes" ]]; then
+    elif [[ ( "$DRY_RUN" != "yes" || "$WIZARD" == "yes" ) && "$NONINTERACTIVE" != "yes" ]]; then
         if yes_no "Permitești SSH din WireGuard?" y; then
-            read -r -p "Subnetul WireGuard sau sursa văzută de server (ex. 10.8.0.0/24): " WIREGUARD_CIDR
+            read -r -p "Subnetul WireGuard sau sursa văzută de server (ex. 10.8.0.0/24): " WIREGUARD_CIDR \
+                || die 2 "Intrare închisă; configurare anulată fără aplicare."
             [[ -z "$WIREGUARD_CIDR" ]] || valid_cidr "$WIREGUARD_CIDR" \
                 || die "WireGuard CIDR invalid: $WIREGUARD_CIDR"
         fi
@@ -1177,20 +1219,114 @@ resolve_wireguard_cidr() {
     fi
 }
 
-resolve_feature_flags() {
-    # În --dry-run păstrăm valorile implicite (da pentru toate componentele).
-    if [[ "$DRY_RUN" == "yes" || "$NONINTERACTIVE" == "yes" ]]; then
+# dpkg database facts, not guesses based on executable names or open ports.
+package_state() {
+    local state
+    if ! command -v dpkg-query >/dev/null 2>&1; then
+        printf 'unknown'
         return 0
     fi
+    state="$(dpkg-query -W -f='${Status}' -- "$1" 2>/dev/null || true)"
+    case "$state" in
+        'install ok installed') printf 'installed' ;;
+        '') printf 'absent-or-unregistered' ;;
+        *) printf 'not-fully-installed' ;;
+    esac
+}
 
-    yes_no "Instalez Docker Engine și Docker Compose plugin?" y \
-        && INSTALL_DOCKER=yes || INSTALL_DOCKER=no
-    yes_no "Instalez Tailscale din repository-ul oficial stable?" y \
-        && INSTALL_TAILSCALE=yes || INSTALL_TAILSCALE=no
-    yes_no "Instalez și configurez Fail2Ban pentru SSH?" y \
-        && INSTALL_FAIL2BAN=yes || INSTALL_FAIL2BAN=no
-    yes_no "Activez actualizările automate de securitate?" y \
-        && INSTALL_AUTO_UPDATES=yes || INSTALL_AUTO_UPDATES=no
+print_inventory() {
+    local package service active enabled
+    echo 'READ-ONLY INVENTORY — no configuration is changed'
+    printf 'OS: %s; architecture: %s\n' "${PRETTY_NAME:-unknown}" "$(uname -m)"
+    for package in docker-ce docker.io tailscale fail2ban unattended-upgrades openssh-server ufw; do
+        printf 'Package %-22s %s\n' "$package" "$(package_state "$package")"
+    done
+    for service in docker tailscaled fail2ban ssh ufw; do
+        active=unknown enabled=unknown
+        if command -v systemctl >/dev/null 2>&1; then
+            active="$(systemctl is-active "$service.service" 2>/dev/null || true)"
+            enabled="$(systemctl is-enabled "$service.service" 2>/dev/null || true)"
+        fi
+        printf 'Service %-22s active=%s enabled=%s\n' "$service" "${active:-unknown}" "${enabled:-unknown}"
+    done
+    printf 'SSH source: %s; detected port: %s\n' "${SSH_SOURCE_IP:-unknown}" "$SSH_PORT"
+    printf 'LAN candidate: %s (inferred, confirm before using)\n' "${DETECTED_LAN_CIDR:-unknown}"
+    if command -v systemd-detect-virt >/dev/null 2>&1; then
+        local virtualization
+        virtualization="$(systemd-detect-virt 2>/dev/null || true)"
+        printf 'Virtualization: %s\n' "${virtualization:-unknown}"
+    fi
+    local path
+    for path in /etc/docker/daemon.json /etc/ssh/sshd_config /etc/ufw/ufw.conf; do
+        if [[ -e "$path" ]]; then
+            printf 'Configuration exists: %s (contents not collected)\n' "$path"
+        fi
+    done
+    echo 'Public exposure, VPN reachability and provider firewall: UNKNOWN; not inferred from private IPs.'
+    [[ ! -e /var/run/reboot-required ]] || echo 'Reboot-required marker present; no reboot will be performed.'
+    return 0
+}
+
+resolve_component() {
+    local key="$1" package="$2" prompt="$3" default=y state
+    [[ -z "${CHOICE_SOURCE[$key]:-}" ]] || return 0
+    if [[ "$WIZARD" == "yes" ]]; then
+        state="$(package_state "$package")"
+        printf '\n%s: %s. No = preserve/omit; nothing is uninstalled.\n' "$package" "$state"
+        # Conservative for installed, unregistered alternative packages and unknown states.
+        default=n
+    fi
+    if yes_no "$prompt" "$default"; then
+        printf -v "$key" yes
+    else
+        printf -v "$key" no
+    fi
+    CHOICE_SOURCE["$key"]=wizard
+}
+
+resolve_feature_flags() {
+    if [[ "$DRY_RUN" == "yes" && "$WIZARD" != "yes" || "$NONINTERACTIVE" == "yes" ]]; then
+        return 0
+    fi
+    resolve_component INSTALL_DOCKER docker-ce "Instalez/configurez Docker Engine și Compose?"
+    resolve_component INSTALL_TAILSCALE tailscale "Instalez/configurez Tailscale?"
+    resolve_component INSTALL_FAIL2BAN fail2ban "Instalez/configurez Fail2Ban pentru SSH?"
+    resolve_component INSTALL_AUTO_UPDATES unattended-upgrades "Activez actualizările automate de securitate?"
+}
+
+resolve_access_choices() {
+    [[ "$WIZARD" == "yes" ]] || return 0
+    echo 'Asistent: Enter păstrează serviciile și accesul existente. Nu există rollback temporizat.'
+    if [[ -z "${CHOICE_SOURCE[MANAGE_SSH]:-}" && "$SSH_KEYS_ONLY" != "yes" && -z "$ALLOW_USERS" ]]; then
+        if yes_no 'Modific configurația SSH? Recomandat: Nu, mai ales prin SSH.' n; then
+            MANAGE_SSH=yes
+        else
+            MANAGE_SSH=no
+        fi
+    fi
+    if [[ -z "${CHOICE_SOURCE[SKIP_FIREWALL]:-}" && "$RESET_FIREWALL" != "yes" ]]; then
+        if yes_no 'Configurez firewall-ul UFW? Ai nevoie de acces alternativ la consolă.' n; then
+            SKIP_FIREWALL=no
+        else
+            SKIP_FIREWALL=yes
+        fi
+    fi
+    if [[ -z "${CHOICE_SOURCE[SKIP_UPGRADE]:-}" ]]; then
+        if yes_no 'Actualizez TOATE pachetele sistemului (inclusiv servicii păstrate)?' n; then
+            SKIP_UPGRADE=no
+        else
+            SKIP_UPGRADE=yes
+        fi
+    fi
+}
+
+validate_selection() {
+    [[ "$WIZARD" != "yes" || "$NONINTERACTIVE" != "yes" ]] \
+        || die 2 "--wizard necesită interacțiune; nu combina cu --yes."
+    [[ "$MANAGE_SSH" != "no" || ( "$SSH_KEYS_ONLY" != "yes" && -z "$ALLOW_USERS" ) ]] \
+        || die 2 "--no-ssh / MANAGE_SSH=no intră în conflict cu politica SSH solicitată."
+    [[ "$SKIP_FIREWALL" != "yes" || "$RESET_FIREWALL" != "yes" ]] \
+        || die 2 "Firewall omis: nu pot aplica --reset-firewall."
 }
 
 # C4: validare timpurie pentru flag-urile Docker
@@ -1412,14 +1548,23 @@ preflight() {
     detect_ssh_source
     DETECTED_LAN_CIDR="$(detect_lan_cidr || true)"
 
+    if [[ "$WIZARD" == "yes" ]]; then
+        print_inventory
+        resolve_access_choices
+    fi
     resolve_mode
-    resolve_lan_cidr
-    resolve_wireguard_cidr
+    if [[ "$SKIP_FIREWALL" != "yes" ]]; then
+        resolve_lan_cidr
+        resolve_wireguard_cidr
+    fi
     resolve_feature_flags
     resolve_docker_flags
     resolve_ssh_hardening
-    build_ssh_cidrs
-    warn_uncovered_established
+    validate_selection
+    if [[ "$SKIP_FIREWALL" != "yes" ]]; then
+        build_ssh_cidrs
+        warn_uncovered_established
+    fi
     detect_lxc_unprivileged
 }
 
@@ -2043,6 +2188,7 @@ sshd_effective_keys_only() {
 }
 
 configure_ssh() {
+    [[ "$MANAGE_SSH" == "yes" ]] || return 0
     local sshd_dir="${DS_SSH_CONFIG_DIR:-/etc/ssh/sshd_config.d}"
     local config_90="$sshd_dir/90-bootstrap-security.conf"
     local config_00="$sshd_dir/00-bootstrap-security.conf"
@@ -2181,7 +2327,7 @@ configure_ufw() {
     local cidr
 
     if [[ "$SKIP_FIREWALL" == "yes" ]]; then
-        warn "Sar configurarea UFW; firewall-ul trebuie configurat pe hostul LXC."
+        warn "Păstrez UFW nemodificat (omis explicit sau restricții de container)."
         return 0
     fi
 
@@ -2222,7 +2368,7 @@ configure_fail2ban() {
     fi
 
     if [[ "$SKIP_FIREWALL" == "yes" ]]; then
-        warn "Sar Fail2Ban în LXC neprivilegiat; protecția trebuie făcută pe host."
+        warn "Păstrez Fail2Ban nemodificat: integrarea UFW este omisă."
         return 0
     fi
 
@@ -2270,9 +2416,25 @@ verify_fail2ban_jail() {
     fi
 }
 
+selection_is_noop() {
+    # Fail2Ban is intentionally absent here: this UFW integration never installs
+    # or configures it when SKIP_FIREWALL=yes, regardless of its selected flag.
+    [[ "$MANAGE_SSH" == "no" && "$SKIP_FIREWALL" == "yes" && "$SKIP_UPGRADE" == "yes"
+        && "$INSTALL_DOCKER" == "no" && "$INSTALL_TAILSCALE" == "no"
+        && "$INSTALL_AUTO_UPDATES" == "no" && -z "$CREATE_USER" ]]
+}
+
 bootstrap() {
+    if selection_is_noop; then
+        info "Nicio modificare selectată; păstrez sistemul fără operații APT."
+        return 0
+    fi
     export DEBIAN_FRONTEND=noninteractive
     export NEEDRESTART_MODE=a
+    if [[ "$WIZARD" == "yes" || "$MANAGE_SSH" == "no" || "$SKIP_FIREWALL" == "yes" ]]; then
+        # Do not ask needrestart to restart unrelated/preserved services automatically.
+        export NEEDRESTART_MODE=l
+    fi
 
     info "Actualizez indexul APT..."
     run apt-get "${APT_OPTS[@]}" update
@@ -2289,12 +2451,14 @@ bootstrap() {
         curl
         gnupg
         iproute2
-        openssh-server
         python3-minimal
-        python3-systemd
         sudo
-        ufw
     )
+    [[ "$MANAGE_SSH" != "yes" ]] || base_packages+=(openssh-server)
+    [[ "$SKIP_FIREWALL" == "yes" ]] || base_packages+=(ufw)
+    if [[ "$INSTALL_FAIL2BAN" == "yes" && "$SKIP_FIREWALL" != "yes" ]]; then
+        base_packages+=(python3-systemd)
+    fi
     if [[ "$INSTALL_AUTO_UPDATES" == "yes" ]]; then
         base_packages+=(unattended-upgrades)
     fi
@@ -2418,7 +2582,12 @@ final_notes() {
     echo "============================================================"
     echo
     echo "Mod:            ${MODE:-?} (distro ${DISTRO:-?} / ${CODENAME:-?})"
-    echo "SSH:            port ${SSH_PORT}, permis din: ${SSH_CIDRS[*]}"
+    echo "SSH config:     $([[ "$MANAGE_SSH" == "yes" ]] && echo gestionată || echo PĂSTRATĂ)"
+    if [[ "$SKIP_FIREWALL" == "yes" ]]; then
+        echo "SSH firewall:   PĂSTRAT; accesul existent nu a fost reconfigurat"
+    else
+        echo "SSH:            port ${SSH_PORT}, permis din: ${SSH_CIDRS[*]}"
+    fi
     if [[ -n "$WIREGUARD_IFACE" ]]; then
         echo "                + regulă pe interfața ${WIREGUARD_IFACE}"
     fi
@@ -2434,7 +2603,7 @@ final_notes() {
         echo "  tailscale:    sărit"
     fi
     if [[ "$SKIP_FIREWALL" == "yes" ]]; then
-        echo "  ufw:          sărit (LXC neprivilegiat)"
+        echo "  ufw:          PĂSTRAT (omis explicit / restricții container)"
     else
         echo "  ufw:          $(svc_status ufw.service)"
     fi
@@ -2491,6 +2660,16 @@ main() {
     fi
 
     guard_test_overrides
+    validate_selection
+
+    if [[ "$INSPECT" == "yes" ]]; then
+        detect_distro
+        detect_ssh_port
+        detect_ssh_source
+        DETECTED_LAN_CIDR="$(detect_lan_cidr || true)"
+        print_inventory
+        return 0
+    fi
 
     open_log
     log_write INFO "Start debian-setup.sh ${VERSION} (pid $$)"
@@ -2504,7 +2683,9 @@ main() {
     print_plan_summary
 
     if [[ "$DRY_RUN" != "yes" && "$NONINTERACTIVE" != "yes" ]]; then
-        if ! yes_no "Aplic această configurație?" y; then
+        local apply_default=y
+        [[ "$WIZARD" != "yes" ]] || apply_default=n
+        if ! yes_no "Aplic această configurație?" "$apply_default"; then
             log_write INFO "Anulat de utilizator înainte de orice modificare"
             exit 0
         fi

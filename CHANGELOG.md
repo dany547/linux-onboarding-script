@@ -3,6 +3,35 @@
 Versions follow Semantic Versioning. Git tags use the `vMAJOR.MINOR.PATCH` format.
 A version in this file is not a claim of production or real-VM validation.
 
+## 2.7.0
+
+First guided-setup increment; not the completion of the full upgrade plan.
+
+- Add `--inspect`: read-only package/service inventory, inferred LAN and SSH facts,
+  configuration-file existence, virtualization and reboot marker. No root or log
+  creation; unknown public/provider/VPN reachability is explicitly reported.
+- Add opt-in `--wizard` with preserve/omit defaults for services, SSH, firewall
+  and full-upgrade; `--wizard --dry-run` previews those same choices.
+- Preserve explicit component choices from CLI/config in interactive mode.
+- Add `--no-ssh` (`MANAGE_SSH=no`) and `--no-firewall`
+  (`SKIP_FIREWALL=yes`). Skipping UFW also skips its Fail2Ban integration.
+- Omit openssh-server/UFW installation when those components are not managed.
+- Fail closed on EOF and reject contradictory access-policy selections.
+- In conservative/preserve modes, ask needrestart to list rather than automatically
+  restart unrelated services. Package maintainer scripts can still restart services.
+- Add focused guided-setup regression tests and extend CI.
+
+Compatibility: existing non-interactive defaults remain unchanged. Explicit user/key
+provisioning still runs with `--no-ssh`; this flag preserves sshd configuration,
+not separately requested account changes. Package operations still install base
+dependencies, and full-upgrade (when explicitly selected in the wizard, or left
+at legacy defaults) can upgrade preserved components.
+
+Remaining: timed SSH/firewall rollback and new-connection confirmation, durable
+resume/locking, saved wizard plans, advanced/back/help navigation, complete host
+health and conflicting firewall ownership checks. Real-VM validation has not run.
+GitHub publication is currently blocked by HTTP 403; commits/tags are local only.
+
 ## 2.6.0
 
 Imported the previously unpublished local `2.6.0-c7a` implementation as the

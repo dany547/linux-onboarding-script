@@ -6,6 +6,19 @@ https://github.com/dany547/linux-onboarding-script (`main`), cloned into
 local baseline and replacing the README with English documentation. Original
 files in `/home/dan/CODE/scripts` remain untouched.
 
+## Current increment
+
+- `v2.6.0`: local baseline imported, English README, SemVer changelog/tag and CI;
+  baseline regression suite passed (208 checks).
+- `v2.7.0`: explicit component choice precedence fixed, opt-in conservative wizard,
+  read-only inventory, independent SSH/firewall preservation, EOF/conflict guards,
+  no-op selection without APT and focused regression coverage.
+- GitHub push attempted once and rejected with HTTP 403 (repository permission).
+  Commits and tags remain local; no authentication or account settings changed.
+- Remaining stages below are a roadmap, not implemented promises. Timed access
+  rollback, reconnection proof, durable plans/resume/locking and full host-health
+  and firewall-backend checks are not implemented; no real-VM validation performed.
+
 ## Goal
 
 Make setup easy for beginners and safe to rerun on existing Debian/Ubuntu hosts.

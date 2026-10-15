@@ -16,6 +16,9 @@ jobs:
         run: |
           bash -n debian-setup.sh
           bash -n tests/run.sh
-          shellcheck debian-setup.sh
+          bash -n tests/guided.sh
+          shellcheck debian-setup.sh tests/guided.sh
       - name: Mocked regression suite (no real host setup)
-        run: bash tests/run.sh
+        run: |
+          bash tests/run.sh
+          bash tests/guided.sh
