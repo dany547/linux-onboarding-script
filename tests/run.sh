@@ -2064,7 +2064,9 @@ rc=0
 out="$(
     source "$SCRIPT"
     CREATE_USER='' ALLOW_USERS=''
-    export DS_CMD_GETENT="$TMP_RUN/mocks/fake-getent-c5" FAKE_GETENT_HOME="$TMP_RUN/home/dan"
+    # Explicit sudo membership; do not rely on the host's current account being dan.
+    current_admin_user() { printf 'ci-runner'; }
+    export DS_CMD_GETENT="$TMP_RUN/mocks/fake-getent-c5" FAKE_GETENT_HOME="$TMP_RUN/home/dan" FAKE_GETENT_SUDOERS=dan
     export DS_CMD_SSH_KEYGEN="$TMP_RUN/mocks/fake-keygen-ok"
     mkdir -p "$TMP_RUN/home/dan/.ssh"
     printf 'ssh-ed25519 AAAATEST x\n' >"$TMP_RUN/home/dan/.ssh/authorized_keys"

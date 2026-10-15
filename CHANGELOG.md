@@ -3,6 +3,15 @@
 Versions follow Semantic Versioning. Git tags use the `vMAJOR.MINOR.PATCH` format.
 A version in this file is not a claim of production or real-VM validation.
 
+## 2.8.1
+
+- Make the privileged-key-account test fixture independent of the machine's login
+  name: explicitly mock sudo group membership and a different current user.
+- Reproduced the old CI failure locally with `SUDO_USER=runner`: 206 passed / 2
+  failed (one fixture plus the nested-suite check). The corrected fixture tests
+  actual sudo membership rather than accidentally relying on the local account.
+- No runtime provisioning behavior changed beyond the release version strings.
+
 ## 2.8.0
 
 Add an **initial, deliberately limited Alpine backend**, not Debian/Ubuntu feature

@@ -60,7 +60,7 @@ unit() { sh -c '. "$1"; shift; eval "$1"' unit "$SCRIPT" "$1"; }
 os_fixture 3.24.2
 stable_repos
 expect_rc version 0 sh "$SCRIPT" --version
-contains 'alpine-setup.sh 2.8.0'
+contains 'alpine-setup.sh 2.8.1'
 expect_rc help 0 sh "$SCRIPT" --help
 contains 'OpenRC'
 expect_rc source-guard 0 unit 'printf sourced'

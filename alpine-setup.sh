@@ -43,7 +43,7 @@
 
 set -eu
 
-VERSION="2.8.0"
+VERSION="2.8.1"
 SCRIPT_NAME="alpine-setup.sh"
 ALPINE_STABLE_BRANCH="3.24"
 LOG_FILE="/var/log/alpine-setup.log"

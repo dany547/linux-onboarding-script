@@ -68,7 +68,7 @@ fi
 #   test cu DS_TEST=1; la rulare reală, orice DS_* de test setat => exit 2.
 # ============================================================
 
-VERSION="2.8.0"
+VERSION="2.8.1"
 LOG_FILE="/var/log/debian-setup.log"
 LOG_FD=""
 
