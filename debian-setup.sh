@@ -57,7 +57,7 @@ set -Eeuo pipefail
 #   test cu DS_TEST=1; la rulare reală, orice DS_* de test setat => exit 2.
 # ============================================================
 
-VERSION="2.7.0"
+VERSION="2.7.1"
 LOG_FILE="/var/log/debian-setup.log"
 LOG_FD=""
 
@@ -191,7 +191,7 @@ open_log() {
     else
         umask "$umask_old"
         LOG_FD=""
-        warn "Nu pot scrie logul în $LOG_FILE; continu fără log în fișier."
+        warn "Cannot write the log to $LOG_FILE; continuing without a file log."
     fi
 }
 
@@ -199,12 +199,12 @@ open_log() {
 on_error() {
     local exit_code=$?
     local line_no="${BASH_LINENO[0]:-?}"
-    local cmd="${BASH_COMMAND:-necunoscută}"
+    local cmd="${BASH_COMMAND:-unknown}"
 
-    log_write ERROR "Eșec la linia ${line_no}: ${cmd} (cod ${exit_code})"
-    printf '%s[ERROR]%s Eroare la linia %s: %s (cod %s)%s\n' \
+    log_write ERROR "Failure at line ${line_no}: ${cmd} (exit code ${exit_code})"
+    printf '%s[ERROR]%s Error at line %s: %s (exit code %s)%s\n' \
         "${RED}" "${NC}" "${line_no}" "${cmd}" "${exit_code}" \
-        "$(if [[ -n "$LOG_FD" ]]; then printf ', vezi %s' "$LOG_FILE"; fi)" >&2
+        "$(if [[ -n "$LOG_FD" ]]; then printf ', see %s' "$LOG_FILE"; fi)" >&2
     exit 1
 }
 
@@ -257,12 +257,12 @@ write_file() {
     local mode="$2"
 
     if [[ "$DRY_RUN" == "yes" ]]; then
-        printf '%s[DRY-RUN]%s scriu %s (mod %s):\n' "${CYAN}" "${NC}" "$path" "$mode"
+        printf '%s[DRY-RUN]%s write %s (mode %s):\n' "${CYAN}" "${NC}" "$path" "$mode"
         sed 's/^/    | /'
         return 0
     fi
 
-    log_write WRITE "$path (mod $mode)"
+    log_write WRITE "$path (mode $mode)"
     local tmp
     tmp="$(mktemp)"
     cat >"$tmp"
@@ -343,75 +343,78 @@ usage() {
 Debian/Ubuntu server bootstrap — Docker, Compose, UFW, Fail2Ban, Tailscale
 
 Usage:
-  sudo bash debian-setup.sh [opțiuni]
+  sudo bash debian-setup.sh [options]
 
-Opțiuni:
-  -y, --yes                  Non-interactiv; necesită --mode
-  --mode lan|vps             LAN = SSH din LAN/VPN; VPS = SSH doar din VPN
-  --lan-cidr CIDR            Subnetul LAN permis pentru SSH
-  --wireguard-cidr CIDR      Subnetul sau sursa WireGuard permisă pentru SSH
-  --wireguard-iface IFACE    Regulă UFW suplimentară 'in on IFACE' pentru SSH
-                             (peste regulile CIDR, nu în locul lor)
-  --config FILE              Încarcă setări din FILE (linii KEY=value, fără shell;
-                             cheile permise sunt cele listate de --print-config;
-                             argumentele din linia de comandă au prioritate)
-  --print-config             Afișează configurația efectivă (KEY=value) și iese
-  --dry-run                  Afișează planul complet (comenzi, fișiere, reguli UFW)
-                             fără nicio mutație; merge și ca non-root cu DS_ROOT_OK=1
-  --inspect                  Inventar read-only; fără root, log sau modificări
-  --wizard                   Asistent conservator; păstrează implicit serviciile existente
-  --no-ssh                   Nu modifica configurația serviciului SSH
-  --no-firewall              Nu instala/configura UFW sau integrarea Fail2Ban-UFW
-  --no-docker                Nu instala Docker Engine + Compose plugin
-  --no-tailscale             Nu instala Tailscale
-  --no-fail2ban              Nu instala/configura Fail2Ban
-  --no-auto-updates          Nu activa unattended-upgrades pentru update-uri de securitate
-  --reset-firewall           Resetează regulile UFW existente înainte de configurare
-  --allow-current-ssh        Permite explicit IP-ul sesiunii SSH curente
-  --skip-upgrade             Nu executa apt full-upgrade
-  --docker-pool CIDR         Pool implicit de rețele Docker (default-address-pools,
-                             subreți de /24; ex. 10.200.0.0/16)
-  --docker-bind-localhost    Publicările de porturi se leagă implicit la 127.0.0.1
-                             (cheia "ip" din daemon.json). Fără ea Docker leagă pe
-                             0.0.0.0 și poate ocoli regulile UFW!
-  --no-docker-config         Nu atinge /etc/docker/daemon.json
-  --docker-user USER         Adaugă USER în grupul docker — echivalent root!
-  --create-user NAME         Creează (sau refolosește) un user cu shell bash, în grupul
-                             sudo, parolă blocată; instalare idempotentă
-  --no-sudo-nopasswd         Cu --create-user: nu scrie sudoers NOPASSWD și nu blochează
-                             parola (seteaz-o manual cu passwd)
-  --ssh-key-file CALE        Instalează cheia publică din CALE pentru --create-user
-                             (sau pentru root). PREFERAT: cheia nu apare în lista
-                             de procese, spre deosebire de --ssh-key
-  --ssh-key CHEIE            Cheie publică SSH (ssh-ed25519 AAAA... comment); vizibilă
-                             în process list — folosește --ssh-key-file când poți
-  --ssh-keys-only            Politică strictă: autentificare doar cu chei (drop-in
-                             00-bootstrap-security.conf + verificare sshd -T);
-                             precondiție: minim un cont privilegiat are cheie validă
-  --allow-users U1,U2        AllowUsers în sshd; trebuie să includă userul curent
-                             sau userul din --create-user, altfel exit 4
-  --auto-reboot HH:MM        Permite reboot-ul automat al serverului la ora dată
-  --mail ADRESĂ              Trimite rapoartele unattended la ADRESĂ (necesită MTA)
-  --update-third-party       Actualizări automate și pentru repo-urile Docker/Tailscale
-                             (implicit doar originile oficiale de securitate)
-  --strict                   Dacă verificarea unattended-upgrades eșuează la final →
-                             exit 1 (implicit: doar warn puternic)
-  --version                  Afișează versiunea și iese
+Options:
+  -y, --yes                  Non-interactive; requires --mode
+  --mode lan|vps             LAN = SSH from LAN/VPN; VPS = SSH from VPN only
+  --lan-cidr CIDR            LAN subnet allowed for SSH
+  --wireguard-cidr CIDR      WireGuard subnet or source allowed for SSH
+  --wireguard-iface IFACE    Extra UFW rule 'in on IFACE' for SSH
+                             (in addition to the CIDR rules, not instead of them)
+  --config FILE              Load settings from FILE (KEY=value lines, no shell;
+                             allowed keys are those listed by --print-config;
+                             command-line arguments take precedence)
+  --print-config             Print the effective configuration (KEY=value) and exit
+  --dry-run                  Print the full plan (commands, files, UFW rules)
+                             with no mutation; also works as non-root with DS_ROOT_OK=1
+  --inspect                  Read-only inventory; no root, no log, no changes
+  --wizard                   Conservative assistant; existing services are preserved
+                             by default
+  --no-ssh                   Do not modify the SSH service configuration
+  --no-firewall              Do not install/configure UFW or the Fail2Ban-UFW
+                             integration
+  --no-docker                Do not install Docker Engine + Compose plugin
+  --no-tailscale             Do not install Tailscale
+  --no-fail2ban              Do not install/configure Fail2Ban
+  --no-auto-updates          Do not enable unattended-upgrades for security updates
+  --reset-firewall           Reset existing UFW rules before configuration
+  --allow-current-ssh        Explicitly allow the IP of the current SSH session
+  --skip-upgrade             Do not run apt full-upgrade
+  --docker-pool CIDR         Default Docker network pool (default-address-pools,
+                             /24 subnets; e.g. 10.200.0.0/16)
+  --docker-bind-localhost    Port publishes bind to 127.0.0.1 by default
+                             (the "ip" key in daemon.json). Without it Docker binds
+                             to 0.0.0.0 and can bypass UFW rules!
+  --no-docker-config         Do not touch /etc/docker/daemon.json
+  --docker-user USER         Add USER to the docker group — root equivalent!
+  --create-user NAME         Create (or reuse) a user with a bash shell, in the sudo
+                             group, with a locked password; idempotent install
+  --no-sudo-nopasswd         With --create-user: do not write sudoers NOPASSWD and do
+                             not lock the password (set it manually with passwd)
+  --ssh-key-file PATH        Install the public key from PATH for --create-user
+                             (or for root). PREFERRED: the key does not show up in the
+                             process list, unlike --ssh-key
+  --ssh-key KEY              SSH public key (ssh-ed25519 AAAA... comment); visible in
+                             the process list — use --ssh-key-file when you can
+  --ssh-keys-only            Strict policy: key-only authentication (drop-in
+                             00-bootstrap-security.conf + sshd -T check);
+                             precondition: at least one privileged account has a
+                             valid key
+  --allow-users U1,U2        AllowUsers in sshd; must include the current user
+                             or the --create-user user, otherwise exit 4
+  --auto-reboot HH:MM        Allow the server to reboot automatically at the given time
+  --mail ADDRESS             Send unattended reports to ADDRESS (requires an MTA)
+  --update-third-party       Automatic updates also for the Docker/Tailscale repos
+                             (by default only the official security origins)
+  --strict                   If the unattended-upgrades check fails at the end →
+                             exit 1 (by default: strong warning only)
+  --version                  Print the version and exit
   -h, --help
 
-Comportament de rețea:
+Network behavior:
   LAN:
-    SSH este permis din --lan-cidr, --wireguard-cidr și Tailscale.
+    SSH is allowed from --lan-cidr, --wireguard-cidr and Tailscale.
   VPS:
-    SSH public nu este permis; SSH este permis doar din WireGuard/Tailscale.
+    Public SSH is not allowed; SSH is allowed only from WireGuard/Tailscale.
 
-Tailscale folosește canalul oficial stable. Autentificarea rămâne manuală:
+Tailscale uses the official stable channel. Authentication stays manual:
   sudo tailscale up
 
-Cloudflare Tunnel nu are nevoie de porturile 80/443 deschise.
+Cloudflare Tunnel does not need ports 80/443 open.
 
-Coduri de ieșire: 0 ok, 1 eroare, 2 argumente invalide,
-3 precondiție/OS nesuportat, 4 risc de lockout.
+Exit codes: 0 ok, 1 error, 2 invalid arguments,
+3 precondition/unsupported OS, 4 lockout risk.
 EOF
 }
 
@@ -426,10 +429,10 @@ yes_no() {
     fi
 
     if [[ "$default" == "y" ]]; then
-        read -r -p "$prompt [Y/n]: " answer || die 2 "Intrare închisă; configurare anulată fără aplicare."
+        read -r -p "$prompt [Y/n]: " answer || die 2 "Input closed; configuration cancelled without applying changes."
         answer="${answer:-y}"
     else
-        read -r -p "$prompt [y/N]: " answer || die 2 "Intrare închisă; configurare anulată fără aplicare."
+        read -r -p "$prompt [y/N]: " answer || die 2 "Input closed; configuration cancelled without applying changes."
         answer="${answer:-n}"
     fi
 
@@ -443,7 +446,7 @@ require_tty_or_yes() {
         return 0
     fi
     if [[ "$NONINTERACTIVE" != "yes" && ! -t 0 ]]; then
-        die "Fără TTY. Rulează interactiv sau cu -y și opțiunile necesare."
+        die "No TTY. Run interactively or with -y and the required options."
     fi
 }
 
@@ -537,7 +540,7 @@ detect_ssh_source() {
     fi
 
     if [[ -z "$SSH_SOURCE_IP" ]]; then
-        die 4 "Sesiune SSH detectată (sshd în lanțul de procese), dar IP-ul sursă nu poate fi determinat (tipic sub sudo/su). Rulează din nou cu DS_SSH_SOURCE=<IP> sau folosește --allow-current-ssh."
+        die 4 "SSH session detected (sshd in the process chain), but the source IP cannot be determined (typical under sudo/su). Re-run with DS_SSH_SOURCE=<IP> or use --allow-current-ssh."
     fi
 }
 
@@ -648,9 +651,9 @@ detect_ssh_socket() {
 # verificare post-restart ssh.socket: portul SSH ascultă efectiv?
 verify_ssh_listening() {
     if cmd_ss -Hln "( sport = :$SSH_PORT )" 2>/dev/null | grep -q .; then
-        ok "sshd ascultă pe portul $SSH_PORT."
+        ok "sshd is listening on port $SSH_PORT."
     else
-        warn "sshd nu ascultă (încă) pe portul $SSH_PORT; verifică ssh.socket/serviciul sshd."
+        warn "sshd is not listening (yet) on port $SSH_PORT; check ssh.socket/the sshd service."
     fi
 }
 
@@ -690,14 +693,14 @@ print_detection() {
     echo " Debian/Ubuntu server bootstrap"
     echo "============================================================"
     echo
-    echo "Sistem:       ${PRETTY_NAME:-Debian/Ubuntu}"
+    echo "System:       ${PRETTY_NAME:-Debian/Ubuntu}"
     echo "Distro:       ${DISTRO:-?}"
-    echo "Codename:     ${CODENAME:-necunoscut}"
-    echo "Mod rețea:    ${MODE:-nesetat}"
+    echo "Codename:     ${CODENAME:-unknown}"
+    echo "Network mode: ${MODE:-unset}"
     echo "Port SSH:     $SSH_PORT"
-    echo "LAN CIDR:     ${LAN_CIDR:-nesetat}"
-    echo "WireGuard:    ${WIREGUARD_CIDR:-nesetat}${WIREGUARD_IFACE:+ (interfață $WIREGUARD_IFACE)}"
-    echo "Tailscale:    $([[ "$INSTALL_TAILSCALE" == "yes" ]] && echo "$TAILSCALE_CIDR + $TAILSCALE_IPV6_CIDR" || echo NU)"
+    echo "LAN CIDR:     ${LAN_CIDR:-unset}"
+    echo "WireGuard:    ${WIREGUARD_CIDR:-unset}${WIREGUARD_IFACE:+ (interface $WIREGUARD_IFACE)}"
+    echo "Tailscale:    $([[ "$INSTALL_TAILSCALE" == "yes" ]] && echo "$TAILSCALE_CIDR + $TAILSCALE_IPV6_CIDR" || echo NO)"
     echo
 }
 
@@ -711,29 +714,29 @@ print_config() {
 
 print_plan_summary() {
     echo "============================================================"
-    echo " CONFIGURAȚIE"
+    echo " CONFIGURATION"
     echo "============================================================"
     echo
     echo "Docker + Compose:       $INSTALL_DOCKER"
     echo "Tailscale:              $INSTALL_TAILSCALE"
     echo "Fail2Ban:               $INSTALL_FAIL2BAN"
-    echo "Auto-updates securitate: $INSTALL_AUTO_UPDATES"
-    echo "Configurație SSH:        $MANAGE_SSH"
-    echo "Firewall UFW:            $([[ "$SKIP_FIREWALL" == "yes" ]] && echo 'PĂSTREAZĂ (omis explicit / restricții container)' || echo DA)"
-    echo "Reset reguli UFW:        $RESET_FIREWALL"
-    echo "Upgrade Debian:          $([[ "$SKIP_UPGRADE" == "yes" ]] && echo NU || echo DA)"
+    echo "Security auto-updates:  $INSTALL_AUTO_UPDATES"
+    echo "SSH configuration:      $MANAGE_SSH"
+    echo "Firewall UFW:            $([[ "$SKIP_FIREWALL" == "yes" ]] && echo 'KEEP (explicitly skipped / container restrictions)' || echo YES)"
+    echo "Reset UFW rules:        $RESET_FIREWALL"
+    echo "Upgrade Debian:          $([[ "$SKIP_UPGRADE" == "yes" ]] && echo NO || echo YES)"
     echo "Port SSH:                $SSH_PORT"
     if [[ "$SKIP_FIREWALL" == "yes" ]]; then
-        echo "Acces SSH firewall:      PĂSTRAT (reguli existente, neverificate)"
+        echo "SSH firewall access:     KEPT (existing rules, unverified)"
     else
-        echo "SSH permis din:          ${SSH_CIDRS[*]}"
+        echo "SSH allowed from:        ${SSH_CIDRS[*]}"
     fi
-    echo "Sesiune SSH detectată:   $SSH_SESSION_IS_SSH"
+    echo "SSH session detected:    $SSH_SESSION_IS_SSH"
     if [[ -n "$WIREGUARD_IFACE" ]]; then
-        echo "Interfață WireGuard:     $WIREGUARD_IFACE"
+        echo "WireGuard interface:     $WIREGUARD_IFACE"
     fi
     if [[ -n "$SSH_SOURCE_IP" ]]; then
-        echo "SSH curent din:          $SSH_SOURCE_IP"
+        echo "Current SSH from:        $SSH_SOURCE_IP"
     fi
     echo
 }
@@ -751,7 +754,7 @@ detect_distro() {
     local os_file="${DS_OS_RELEASE:-/etc/os-release}"
     local id id_like version_id major=""
 
-    [[ -r "$os_file" ]] || die 3 "Nu pot citi $os_file."
+    [[ -r "$os_file" ]] || die 3 "Cannot read $os_file."
 
     # shellcheck disable=SC1090
     source "$os_file"
@@ -770,19 +773,19 @@ detect_distro() {
         DISTRO="$id"
     elif [[ " $id_like " == *" debian "* && " $id_like " != *" ubuntu "* ]]; then
         DISTRO="debian"
-        warn "Derivat Debian detectat (ID=${id}, ID_LIKE=${id_like}); este tratat ca Debian. Combinatia nu este testată oficial."
+        warn "Debian derivative detected (ID=${id}, ID_LIKE=${id_like}); it is treated as Debian. This combination is not officially tested."
     elif [[ " $id_like " == *" ubuntu "* || " $id_like " == *" debian "* ]]; then
         DISTRO="ubuntu"
-        warn "Derivat Ubuntu detectat (ID=${id}, ID_LIKE=${id_like}); este tratat ca Ubuntu. Combinatia nu este testată oficial."
+        warn "Ubuntu derivative detected (ID=${id}, ID_LIKE=${id_like}); it is treated as Ubuntu. This combination is not officially tested."
     else
-        die 3 "Distribuție nesuportată: ${PRETTY_NAME:-${id:-necunoscută}}. Sunt suportate Debian 12/13, Ubuntu 22.04/24.04 și derivatele lor."
+        die 3 "Unsupported distribution: ${PRETTY_NAME:-${id:-unknown}}. Supported: Debian 12/13, Ubuntu 22.04/24.04 and their derivatives."
     fi
 
     if [[ "$DISTRO" == "debian" ]]; then
         if [[ "$id" == "debian" ]]; then
             major="${version_id%%.*}"
             if [[ "$major" != "12" && "$major" != "13" ]]; then
-                die 3 "Sunt suportate Debian 12 și 13; detectat: ${PRETTY_NAME:-necunoscut}."
+                die 3 "Supported: Debian 12 and 13; detected: ${PRETTY_NAME:-unknown}."
             fi
         fi
         CODENAME="${VERSION_CODENAME:-}"
@@ -795,14 +798,14 @@ detect_distro() {
     else
         if [[ "$id" == "ubuntu" ]]; then
             if [[ "$version_id" != "22.04" && "$version_id" != "24.04" ]]; then
-                die 3 "Sunt suportate Ubuntu 22.04 și 24.04; detectat: ${PRETTY_NAME:-necunoscut}."
+                die 3 "Supported: Ubuntu 22.04 and 24.04; detected: ${PRETTY_NAME:-unknown}."
             fi
         fi
         CODENAME="${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}"
     fi
 
     [[ -n "$CODENAME" ]] \
-        || die 3 "Nu pot determina codename-ul distribuției (${PRETTY_NAME:-${id:-necunoscută}})."
+        || die 3 "Cannot determine the distribution codename (${PRETTY_NAME:-${id:-unknown}})."
 
     # R3: codename cunoscut? Primar necunoscut → die 3; derivat necunoscut → warn.
     local known_codename=no c
@@ -813,9 +816,9 @@ detect_distro() {
     done
     if [[ "$known_codename" != "yes" ]]; then
         if [[ "$id" == "debian" || "$id" == "ubuntu" ]]; then
-            die 3 "Codename necunoscut pentru ${id}: '${CODENAME}'. Sunt suportate: bookworm, trixie, jammy, noble."
+            die 3 "Unknown codename for ${id}: '${CODENAME}'. Supported: bookworm, trixie, jammy, noble."
         fi
-        warn "Derivat ${id}: codename '${CODENAME}' nu e în lista cunoscută (bookworm/trixie/jammy/noble); repo-urile oficial e posibil să nu aibă suite pentru el."
+        warn "Derivative ${id}: codename '${CODENAME}' is not in the known list (bookworm/trixie/jammy/noble); official repos may not have a suite for it."
     fi
 
     DOCKER_REPO_URL="https://download.docker.com/linux/${DISTRO}"
@@ -843,7 +846,7 @@ guard_test_overrides() {
     fi
     if [[ "${DS_TEST:-}" == "1" ]]; then
         if [[ -n "${DS_TAILSCALE_OLD_LIST:-}" && "${DS_TAILSCALE_OLD_LIST}" != /etc/apt/sources.list.d/* ]]; then
-            die 2 "DS_TAILSCALE_OLD_LIST trebuie să fie sub /etc/apt/sources.list.d/."
+            die 2 "DS_TAILSCALE_OLD_LIST must be under /etc/apt/sources.list.d/."
         fi
         return 0
     fi
@@ -857,7 +860,7 @@ guard_test_overrides() {
     done < <(compgen -e | grep '^DS_' || true)
 
     if [[ -n "$found" ]]; then
-        die 2 "Variabile de test DS_* detectate la rulare reală (${found}). Șterge-le din mediu sau folosește --dry-run (în medii de test: DS_TEST=1)."
+        die 2 "Test DS_* variables detected in a real run (${found}). Remove them from the environment or use --dry-run (in test environments: DS_TEST=1)."
     fi
 }
 
@@ -872,7 +875,7 @@ load_config() {
     local line raw_key key value
 
     if [[ ! -r "$file" ]]; then
-        die 2 "Nu pot citi fișierul de configurare: $file"
+        die 2 "Cannot read config file: $file"
     fi
 
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -882,7 +885,7 @@ load_config() {
             continue
         fi
         if [[ "$line" != *"="* ]]; then
-            die 2 "Linie invalidă în $file (format așteptat KEY=value): $line"
+            die 2 "Invalid line in $file (expected format KEY=value): $line"
         fi
 
         raw_key="${line%%=*}"
@@ -894,57 +897,57 @@ load_config() {
         case "$key" in
             MODE)
                 [[ "$value" == "lan" || "$value" == "vps" ]] \
-                    || die 2 "MODE trebuie să fie lan sau vps (în $file)."
+                    || die 2 "MODE must be lan or vps (in $file)."
                 ;;
             LAN_CIDR|WIREGUARD_CIDR|TAILSCALE_CIDR|TAILSCALE_IPV6_CIDR)
-                valid_cidr "$value" || die 2 "$key invalid în $file: $value"
+                valid_cidr "$value" || die 2 "$key invalid in $file: $value"
                 ;;
             WIREGUARD_IFACE)
                 [[ "$value" =~ ^[A-Za-z0-9._-]{1,15}$ ]] \
-                    || die 2 "WIREGUARD_IFACE invalid în $file: $value"
+                    || die 2 "WIREGUARD_IFACE invalid in $file: $value"
                 ;;
             DOCKER_POOL)
-                valid_cidr "$value" || die 2 "DOCKER_POOL invalid în $file: $value"
+                valid_cidr "$value" || die 2 "DOCKER_POOL invalid in $file: $value"
                 ;;
             DOCKER_CONFIG|DOCKER_BIND_LOCALHOST)
                 [[ "$value" == "yes" || "$value" == "no" ]] \
-                    || die 2 "$key trebuie să fie yes sau no (în $file)."
+                    || die 2 "$key must be yes or no (in $file)."
                 ;;
             DOCKER_USER)
-                [[ -n "$value" ]] || die 2 "DOCKER_USER nu poate fi gol (în $file)."
+                [[ -n "$value" ]] || die 2 "DOCKER_USER cannot be empty (in $file)."
                 ;;
             CREATE_USER)
                 [[ "$value" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] \
-                    || die 2 "CREATE_USER invalid în $file: $value"
+                    || die 2 "CREATE_USER invalid in $file: $value"
                 ;;
             SSH_KEY_FILE)
-                [[ -n "$value" ]] || die 2 "SSH_KEY_FILE nu poate fi gol (în $file)."
+                [[ -n "$value" ]] || die 2 "SSH_KEY_FILE cannot be empty (in $file)."
                 ;;
             ALLOW_USERS)
                 local u
                 for u in ${value//,/ }; do
                     [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] \
-                        || die 2 "ALLOW_USERS invalid în $file: $u"
+                        || die 2 "ALLOW_USERS invalid in $file: $u"
                 done
                 ;;
             AUTO_REBOOT)
                 [[ "$value" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] \
-                    || die 2 "AUTO_REBOOT invalid în $file (format HH:MM): $value"
+                    || die 2 "AUTO_REBOOT invalid in $file (format HH:MM): $value"
                 ;;
             MAIL_ADDR)
                 [[ "$value" =~ ^[^@[:space:]]+@[^@[:space:]]+$ ]] \
-                    || die 2 "MAIL_ADDR invalid în $file: $value"
+                    || die 2 "MAIL_ADDR invalid in $file: $value"
                 ;;
             SSH_KEYS_ONLY|UPDATE_THIRD_PARTY|SUDO_NOPASSWD)
                 [[ "$value" == "yes" || "$value" == "no" ]] \
-                    || die 2 "$key trebuie să fie yes sau no (în $file)."
+                    || die 2 "$key must be yes or no (in $file)."
                 ;;
             MANAGE_SSH|SKIP_FIREWALL|INSTALL_DOCKER|INSTALL_TAILSCALE|INSTALL_FAIL2BAN|INSTALL_AUTO_UPDATES|RESET_FIREWALL|SKIP_UPGRADE|ALLOW_CURRENT_SSH)
                 [[ "$value" == "yes" || "$value" == "no" ]] \
-                    || die 2 "$key trebuie să fie yes sau no (în $file)."
+                    || die 2 "$key must be yes or no (in $file)."
                 ;;
             *)
-                die 2 "Cheie nepermisă în $file: $key"
+                die 2 "Disallowed key in $file: $key"
                 ;;
         esac
 
@@ -952,7 +955,7 @@ load_config() {
         CHOICE_SOURCE["$key"]=config
     done <"$file"
 
-    log_write INFO "Configurație încărcată din $file"
+    log_write INFO "Configuration loaded from $file"
 }
 
 # Parsare centralizată: --config se procesează într-o primă trecere,
@@ -964,7 +967,7 @@ parse_args() {
     for ((i = 0; i < ${#args[@]}; i++)); do
         if [[ "${args[i]}" == "--config" ]]; then
             if (( i + 1 >= ${#args[@]} )); then
-                die 2 "Lipsește valoarea pentru --config."
+                die 2 "Missing value for --config."
             fi
             CONFIG_FILE="${args[i + 1]}"
             load_config "$CONFIG_FILE"
@@ -978,22 +981,22 @@ parse_args() {
                 shift
                 ;;
             --mode)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --mode."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --mode."
                 MODE="${2,,}"
                 shift 2
                 ;;
             --lan-cidr)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --lan-cidr."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --lan-cidr."
                 LAN_CIDR="$2"
                 shift 2
                 ;;
             --wireguard-cidr)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --wireguard-cidr."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --wireguard-cidr."
                 WIREGUARD_CIDR="$2"
                 shift 2
                 ;;
             --wireguard-iface)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --wireguard-iface."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --wireguard-iface."
                 WIREGUARD_IFACE="$2"
                 shift 2
                 ;;
@@ -1064,7 +1067,7 @@ parse_args() {
                 shift
                 ;;
             --docker-pool)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --docker-pool."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --docker-pool."
                 DOCKER_POOL="$2"
                 shift 2
                 ;;
@@ -1077,22 +1080,22 @@ parse_args() {
                 shift
                 ;;
             --docker-user)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --docker-user."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --docker-user."
                 DOCKER_USER="$2"
                 shift 2
                 ;;
             --create-user)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --create-user."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --create-user."
                 CREATE_USER="$2"
                 shift 2
                 ;;
             --ssh-key-file)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --ssh-key-file."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --ssh-key-file."
                 SSH_KEY_FILE="$2"
                 shift 2
                 ;;
             --ssh-key)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --ssh-key."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --ssh-key."
                 SSH_KEY="$2"
                 shift 2
                 ;;
@@ -1105,17 +1108,17 @@ parse_args() {
                 shift
                 ;;
             --allow-users)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --allow-users."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --allow-users."
                 ALLOW_USERS="$2"
                 shift 2
                 ;;
             --auto-reboot)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --auto-reboot."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --auto-reboot."
                 AUTO_REBOOT="$2"
                 shift 2
                 ;;
             --mail)
-                [[ $# -ge 2 ]] || die 2 "Lipsește valoarea pentru --mail."
+                [[ $# -ge 2 ]] || die 2 "Missing value for --mail."
                 MAIL_ADDR="$2"
                 shift 2
                 ;;
@@ -1132,7 +1135,7 @@ parse_args() {
                 exit 0
                 ;;
             *)
-                die 2 "Opțiune necunoscută: $1 (vezi --help)"
+                die 2 "Unknown option: $1 (see --help)"
                 ;;
         esac
     done
@@ -1147,15 +1150,15 @@ require_root() {
         return 0
     fi
     if [[ "$DRY_RUN" == "yes" && "${DS_ROOT_OK:-}" == "1" ]]; then
-        warn "Rulez ca non-root în --dry-run (DS_ROOT_OK=1); nu se execută nicio mutație."
+        warn "Running as non-root in --dry-run (DS_ROOT_OK=1); no mutation is performed."
         return 0
     fi
-    die 3 "Rulează scriptul cu sudo sau ca root."
+    die 3 "Run the script with sudo or as root."
 }
 
 check_proxmox() {
     if command -v pveversion >/dev/null 2>&1; then
-        die 3 "Proxmox VE detectat (pveversion). Acest script nu trebuie rulat pe hostul Proxmox; folosește-l în VM sau LXC."
+        die 3 "Proxmox VE detected (pveversion). This script must not be run on a Proxmox host; use it in a VM or LXC."
     fi
 }
 
@@ -1163,25 +1166,25 @@ resolve_mode() {
     if [[ -z "$MODE" ]]; then
         if [[ "$DRY_RUN" == "yes" && "$WIZARD" != "yes" ]]; then
             MODE=lan
-            info "DRY-RUN fără --mode: folosesc implicit lan (schimbă cu --mode)."
+            info "DRY-RUN without --mode: defaulting to lan (change with --mode)."
         elif [[ "$NONINTERACTIVE" == "yes" ]]; then
-            die "În modul non-interactiv trebuie să specifici --mode lan sau --mode vps."
+            die "In non-interactive mode you must specify --mode lan or --mode vps."
         else
-            echo "Unde rulează această mașină?"
-            echo "  1) LAN — SSH din rețeaua locală și VPN"
-            echo "  2) VPS — SSH doar din VPN"
-            read -r -p "Alege [1]: " mode_answer || die 2 "Intrare închisă; configurare anulată fără aplicare."
+            echo "Where does this machine run?"
+            echo "  1) LAN — SSH from the local network and VPN"
+            echo "  2) VPS — SSH from VPN only"
+            read -r -p "Choose [1]: " mode_answer || die 2 "Input closed; configuration cancelled without applying changes."
             mode_answer="${mode_answer:-1}"
             case "$mode_answer" in
                 1) MODE=lan ;;
                 2) MODE=vps ;;
-                *) die "Mod invalid: $mode_answer" ;;
+                *) die "Invalid mode: $mode_answer" ;;
             esac
         fi
     fi
 
     [[ "$MODE" == "lan" || "$MODE" == "vps" ]] \
-        || die 2 "--mode trebuie să fie lan sau vps."
+        || die 2 "--mode must be lan or vps."
 }
 
 resolve_lan_cidr() {
@@ -1189,33 +1192,33 @@ resolve_lan_cidr() {
         if [[ "$DRY_RUN" == "yes" && "$WIZARD" != "yes" || "$NONINTERACTIVE" == "yes" ]]; then
             LAN_CIDR="$DETECTED_LAN_CIDR"
         else
-            read -r -p "CIDR LAN [${DETECTED_LAN_CIDR:-ex. 192.168.1.0/24}]: " LAN_CIDR \
-                || die 2 "Intrare închisă; configurare anulată fără aplicare."
+            read -r -p "LAN CIDR [${DETECTED_LAN_CIDR:-e.g. 192.168.1.0/24}]: " LAN_CIDR \
+                || die 2 "Input closed; configuration cancelled without applying changes."
             LAN_CIDR="${LAN_CIDR:-$DETECTED_LAN_CIDR}"
         fi
     fi
 
     if [[ -n "$LAN_CIDR" ]]; then
-        valid_cidr "$LAN_CIDR" || die "LAN CIDR invalid: $LAN_CIDR"
+        valid_cidr "$LAN_CIDR" || die "Invalid LAN CIDR: $LAN_CIDR"
     fi
 }
 
 resolve_wireguard_cidr() {
     if [[ -n "$WIREGUARD_CIDR" ]]; then
-        valid_cidr "$WIREGUARD_CIDR" || die "WireGuard CIDR invalid: $WIREGUARD_CIDR"
+        valid_cidr "$WIREGUARD_CIDR" || die "Invalid WireGuard CIDR: $WIREGUARD_CIDR"
     elif [[ ( "$DRY_RUN" != "yes" || "$WIZARD" == "yes" ) && "$NONINTERACTIVE" != "yes" ]]; then
-        if yes_no "Permitești SSH din WireGuard?" y; then
-            read -r -p "Subnetul WireGuard sau sursa văzută de server (ex. 10.8.0.0/24): " WIREGUARD_CIDR \
-                || die 2 "Intrare închisă; configurare anulată fără aplicare."
+        if yes_no "Allow SSH from WireGuard?" y; then
+            read -r -p "WireGuard subnet or the source seen by the server (e.g. 10.8.0.0/24): " WIREGUARD_CIDR \
+                || die 2 "Input closed; configuration cancelled without applying changes."
             [[ -z "$WIREGUARD_CIDR" ]] || valid_cidr "$WIREGUARD_CIDR" \
-                || die "WireGuard CIDR invalid: $WIREGUARD_CIDR"
+                || die "Invalid WireGuard CIDR: $WIREGUARD_CIDR"
         fi
     fi
 
     # B5: interfață WireGuard pentru reguli UFW 'in on <iface>'
     if [[ -n "$WIREGUARD_IFACE" ]]; then
         [[ "$WIREGUARD_IFACE" =~ ^[A-Za-z0-9._-]{1,15}$ ]] \
-            || die 2 "Nume interfață WireGuard invalid: $WIREGUARD_IFACE"
+            || die 2 "Invalid WireGuard interface name: $WIREGUARD_IFACE"
     fi
 }
 
@@ -1288,31 +1291,31 @@ resolve_feature_flags() {
     if [[ "$DRY_RUN" == "yes" && "$WIZARD" != "yes" || "$NONINTERACTIVE" == "yes" ]]; then
         return 0
     fi
-    resolve_component INSTALL_DOCKER docker-ce "Instalez/configurez Docker Engine și Compose?"
-    resolve_component INSTALL_TAILSCALE tailscale "Instalez/configurez Tailscale?"
-    resolve_component INSTALL_FAIL2BAN fail2ban "Instalez/configurez Fail2Ban pentru SSH?"
-    resolve_component INSTALL_AUTO_UPDATES unattended-upgrades "Activez actualizările automate de securitate?"
+    resolve_component INSTALL_DOCKER docker-ce "Install/configure Docker Engine and Compose?"
+    resolve_component INSTALL_TAILSCALE tailscale "Install/configure Tailscale?"
+    resolve_component INSTALL_FAIL2BAN fail2ban "Install/configure Fail2Ban for SSH?"
+    resolve_component INSTALL_AUTO_UPDATES unattended-upgrades "Enable automatic security updates?"
 }
 
 resolve_access_choices() {
     [[ "$WIZARD" == "yes" ]] || return 0
-    echo 'Asistent: Enter păstrează serviciile și accesul existente. Nu există rollback temporizat.'
+    echo 'Wizard: Enter keeps the existing services and access. There is no timed rollback.'
     if [[ -z "${CHOICE_SOURCE[MANAGE_SSH]:-}" && "$SSH_KEYS_ONLY" != "yes" && -z "$ALLOW_USERS" ]]; then
-        if yes_no 'Modific configurația SSH? Recomandat: Nu, mai ales prin SSH.' n; then
+        if yes_no 'Modify the SSH configuration? Recommended: No, especially over SSH.' n; then
             MANAGE_SSH=yes
         else
             MANAGE_SSH=no
         fi
     fi
     if [[ -z "${CHOICE_SOURCE[SKIP_FIREWALL]:-}" && "$RESET_FIREWALL" != "yes" ]]; then
-        if yes_no 'Configurez firewall-ul UFW? Ai nevoie de acces alternativ la consolă.' n; then
+        if yes_no 'Configure the UFW firewall? You need alternative console access.' n; then
             SKIP_FIREWALL=no
         else
             SKIP_FIREWALL=yes
         fi
     fi
     if [[ -z "${CHOICE_SOURCE[SKIP_UPGRADE]:-}" ]]; then
-        if yes_no 'Actualizez TOATE pachetele sistemului (inclusiv servicii păstrate)?' n; then
+        if yes_no 'Upgrade ALL system packages (including preserved services)?' n; then
             SKIP_UPGRADE=no
         else
             SKIP_UPGRADE=yes
@@ -1322,20 +1325,20 @@ resolve_access_choices() {
 
 validate_selection() {
     [[ "$WIZARD" != "yes" || "$NONINTERACTIVE" != "yes" ]] \
-        || die 2 "--wizard necesită interacțiune; nu combina cu --yes."
+        || die 2 "--wizard requires interaction; do not combine it with --yes."
     [[ "$MANAGE_SSH" != "no" || ( "$SSH_KEYS_ONLY" != "yes" && -z "$ALLOW_USERS" ) ]] \
-        || die 2 "--no-ssh / MANAGE_SSH=no intră în conflict cu politica SSH solicitată."
+        || die 2 "--no-ssh / MANAGE_SSH=no conflicts with the requested SSH policy."
     [[ "$SKIP_FIREWALL" != "yes" || "$RESET_FIREWALL" != "yes" ]] \
-        || die 2 "Firewall omis: nu pot aplica --reset-firewall."
+        || die 2 "Firewall skipped: cannot apply --reset-firewall."
 }
 
 # C4: validare timpurie pentru flag-urile Docker
 resolve_docker_flags() {
     if [[ -n "$DOCKER_POOL" ]]; then
-        valid_cidr "$DOCKER_POOL" || die 2 "Docker pool CIDR invalid: $DOCKER_POOL"
+        valid_cidr "$DOCKER_POOL" || die 2 "Invalid Docker pool CIDR: $DOCKER_POOL"
     fi
     if [[ -n "$DOCKER_USER" ]] && ! cmd_getent passwd "$DOCKER_USER" >/dev/null 2>&1; then
-        die 2 "Utilizatorul '$DOCKER_USER' nu există; creează-l înainte sau omite --docker-user."
+        die 2 "User '$DOCKER_USER' does not exist; create it first or omit --docker-user."
     fi
 }
 
@@ -1378,7 +1381,7 @@ warn_uncovered_established() {
     done
 
     if [[ -n "$UNCOVERED_PEERS" ]]; then
-        warn "Conexiuni SSH active din surse neacoperite de CIDR-urile permise: ${UNCOVERED_PEERS}— verifică --lan-cidr/--wireguard-cidr; la rularea reală se cere decizie explicită (--allow-current-ssh sau confirmare)."
+        warn "Active SSH connections from sources not covered by the allowed CIDRs: ${UNCOVERED_PEERS} — check --lan-cidr/--wireguard-cidr; a real run requires an explicit decision (--allow-current-ssh or confirmation)."
     fi
 }
 
@@ -1411,31 +1414,31 @@ resolve_ssh_hardening() {
     local u
 
     if [[ -n "$CREATE_USER" && ! "$CREATE_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
-        die 2 "Nume de utilizator invalid: $CREATE_USER"
+        die 2 "Invalid user name: $CREATE_USER"
     fi
 
     if [[ -n "$SSH_KEY_FILE" && -n "$SSH_KEY" ]]; then
-        die 2 "Folosește doar una: --ssh-key-file sau --ssh-key."
+        die 2 "Use only one: --ssh-key-file or --ssh-key."
     fi
 
     if [[ -n "$SSH_KEY_FILE" ]]; then
         if [[ ! -r "$SSH_KEY_FILE" ]]; then
-            die 2 "Nu pot citi fișierul de cheie: $SSH_KEY_FILE"
+            die 2 "Cannot read key file: $SSH_KEY_FILE"
         fi
         if ! cmd_ssh_keygen -lf "$SSH_KEY_FILE" >/dev/null 2>&1; then
-            die 2 "Fișierul $SSH_KEY_FILE nu conține o cheie publică SSH validă."
+            die 2 "File $SSH_KEY_FILE does not contain a valid SSH public key."
         fi
     fi
 
     if [[ -n "$SSH_KEY" ]] && ! validate_ssh_public_key "$SSH_KEY"; then
-        die 2 "Cheia SSH dată prin --ssh-key nu este validă."
+        die 2 "The SSH key passed via --ssh-key is not valid."
     fi
 
     if [[ -n "$ALLOW_USERS" ]]; then
         local found=no cur
         for u in ${ALLOW_USERS//,/ }; do
             if [[ ! "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
-                die 2 "Utilizator invalid în --allow-users: '$u'"
+                die 2 "Invalid user in --allow-users: '$u'"
             fi
             cur="$(current_admin_user)"
             if [[ "$u" == "$cur" || "$u" == "$CREATE_USER" ]]; then
@@ -1443,21 +1446,21 @@ resolve_ssh_hardening() {
             fi
         done
         if [[ "$found" != "yes" ]]; then
-            die 4 "--allow-users nu îl include pe utilizatorul curent ($cur) și nici pe userul din --create-user; te-ai bloca de la SSH. Adaugă-l în listă."
+            die 4 "--allow-users does not include the current user ($cur) nor the --create-user user; you would lock yourself out of SSH. Add them to the list."
         fi
     fi
 
     if [[ -n "$AUTO_REBOOT" && ! "$AUTO_REBOOT" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]]; then
-        die 2 "Ora invalidă pentru --auto-reboot (format HH:MM): $AUTO_REBOOT"
+        die 2 "Invalid time for --auto-reboot (format HH:MM): $AUTO_REBOOT"
     fi
 
     if [[ -n "$MAIL_ADDR" && ! "$MAIL_ADDR" =~ ^[^@[:space:]]+@[^@[:space:]]+$ ]]; then
-        die 2 "Adresă de mail invalidă: $MAIL_ADDR"
+        die 2 "Invalid email address: $MAIL_ADDR"
     fi
 
     # U2: fără MTA, rapoartele pe e-mail nu pot pleca
     if [[ -n "$MAIL_ADDR" ]] && ! command -v sendmail >/dev/null 2>&1 && ! command -v mail >/dev/null 2>&1; then
-        warn "Nu găsesc un MTA (sendmail/mail): rapoartele către $MAIL_ADDR nu vor pleca. Instalează mailutils/postfix."
+        warn "No MTA found (sendmail/mail): reports to $MAIL_ADDR will not be sent. Install mailutils/postfix."
     fi
 
     # A2/F3: precondiție hard pentru --ssh-keys-only — cine rămâne cu login capabil?
@@ -1465,15 +1468,15 @@ resolve_ssh_hardening() {
         local capable="" cur_admin
         capable="$(ssh_login_capable_users || true)"
         if [[ -z "$capable" ]]; then
-            die 4 "Precondiția --ssh-keys-only nu este îndeplinită: niciun cont privilegiat (root/sudo) nu are o cheie SSH validă în authorized_keys. Instalează una cu --create-user + --ssh-key-file sau adaugă manual o cheie pentru root, apoi reia."
+            die 4 "Precondition --ssh-keys-only not met: no privileged account (root/sudo) has a valid SSH key in authorized_keys. Install one with --create-user + --ssh-key-file or add a key for root manually, then rerun."
         fi
         if [[ "$SSH_SESSION_IS_SSH" == "yes" ]]; then
             cur_admin="$(current_admin_user)"
             if ! grep -qx -- "$cur_admin" <<<"$capable"; then
-                die 4 "--ssh-keys-only: contul curent '$cur_admin' nu va mai putea face login (fără cheie validă${ALLOW_USERS:+ / exclus de --allow-users}). Adaugă-i o cheie sau include-l în --allow-users, altfel te blochezi."
+                die 4 "--ssh-keys-only: the current account '$cur_admin' will no longer be able to log in (no valid key${ALLOW_USERS:+ / excluded by --allow-users}). Add a key for it or include it in --allow-users, otherwise you lock yourself out."
             fi
         else
-            info "Consolă: --ssh-keys-only activează login doar pe chei; asigură-te că ai acces alternativ."
+            info "Console: --ssh-keys-only enables key-only login; make sure you have alternative access."
         fi
     fi
 }
@@ -1519,7 +1522,7 @@ build_ssh_cidrs() {
     fi
 
     if (( ${#SSH_CIDRS[@]} == 0 )); then
-        die 4 "Nu există nicio rețea permisă pentru SSH. Configurează WireGuard/Tailscale sau --lan-cidr."
+        die 4 "No network is allowed for SSH. Configure WireGuard/Tailscale or --lan-cidr."
     fi
 }
 
@@ -1532,7 +1535,7 @@ detect_lxc_unprivileged() {
         uid_outside="$(awk 'NR == 1 {print $2}' /proc/1/uid_map)"
         if [[ -n "$uid_outside" && "$uid_outside" != "0" ]]; then
             SKIP_FIREWALL=yes
-            warn "LXC neprivilegiat detectat: UFW/Fail2Ban nu vor fi activate în guest."
+            warn "Unprivileged LXC detected: UFW/Fail2Ban will not be enabled in the guest."
         fi
     fi
 }
@@ -1579,14 +1582,14 @@ verify_unattended_origins() {
     want_label="${SECURITY_ORIGINS[0]##*,}"
 
     if grep -q -- "${CODENAME}-security" <<<"$out" && grep -q -- "$want_label" <<<"$out"; then
-        ok "unattended-upgrades folosește originea de securitate a distribuției (${CODENAME}-security)."
+        ok "unattended-upgrades uses the distribution security origin (${CODENAME}-security)."
         return 0
     fi
 
     if [[ "$STRICT" == "yes" ]]; then
-        die 1 "Verificarea unattended-upgrades a eșuat: originea '${CODENAME}-security' nu apare în 'unattended-upgrade --dry-run --debug'. Actualizările automate de securitate NU funcționează. (--strict)"
+        die 1 "The unattended-upgrades check failed: origin '${CODENAME}-security' does not appear in 'unattended-upgrade --dry-run --debug'. Automatic security updates are NOT working. (--strict)"
     fi
-    warn "VERIFICARE UNATTENDED: originea '${CODENAME}-security' nu apare în 'unattended-upgrade --dry-run --debug'. Actualizările automate de securitate s-ar putea să NU funcționeze; verifică manual. (folosește --strict pentru exit 1)"
+    warn "UNATTENDED CHECK: origin '${CODENAME}-security' does not appear in 'unattended-upgrade --dry-run --debug'. Automatic security updates may NOT be working; check manually. (use --strict for exit 1)"
 }
 
 # Bootstrap (toate mutațiile trec prin run()/write_file())
@@ -1640,26 +1643,26 @@ check_current_session_allowed() {
             else
                 add_ssh_cidr "${cand}/32"
             fi
-            log_write INFO "Permit acces SSH pentru ${cand} (--allow-current-ssh)"
+            log_write INFO "Allow SSH access for ${cand} (--allow-current-ssh)"
         done
         return 0
     fi
 
     if [[ "$DRY_RUN" == "yes" ]]; then
-        warn "Sesiuni neacoperite de regulile propuse (${uncovered}); la rularea reală se cere confirmare explicită sau --allow-current-ssh."
+        warn "Sessions uncovered by the proposed rules (${uncovered}); a real run requires explicit confirmation or --allow-current-ssh."
         return 0
     fi
 
     if [[ "$NONINTERACTIVE" == "yes" ]]; then
-        die 4 "Sesiuni SSH neacoperite de regulile propuse: ${uncovered}. Folosește --allow-current-ssh, corectează --lan-cidr/--wireguard-cidr sau setează DS_SSH_SOURCE=IP."
+        die 4 "SSH sessions uncovered by the proposed rules: ${uncovered}. Use --allow-current-ssh, fix --lan-cidr/--wireguard-cidr or set DS_SSH_SOURCE=IP."
     fi
 
-    warn "Sesiuni SSH neacoperite de regulile propuse: ${uncovered}."
-    if yes_no "Confirmi că aceste sesiuni pierd accesul SSH și ai acces alternativ (consolă/Tailscale/WireGuard)?" n; then
-        log_write INFO "Sesiuni SSH neacoperite confirmate explicit de utilizator"
+    warn "SSH sessions uncovered by the proposed rules: ${uncovered}."
+    if yes_no "Confirm that these sessions lose SSH access and you have alternative access (console/Tailscale/WireGuard)?" n; then
+        log_write INFO "Uncovered SSH sessions explicitly confirmed by the user"
         return 0
     fi
-    die 4 "Nu activez firewall-ul fără acces SSH confirmat. Folosește --allow-current-ssh, corectează CIDR-urile sau setează DS_SSH_SOURCE=IP."
+    die 4 "I will not enable the firewall without confirmed SSH access. Use --allow-current-ssh, fix the CIDRs or set DS_SSH_SOURCE=IP."
 }
 
 # A1: adaugă cheia în authorized_keys doar dacă lipsește; rc 0 = a scris acum
@@ -1699,14 +1702,14 @@ configure_created_user() {
 
     local created_now=no
 
-    info "Configurez utilizatorul $CREATE_USER..."
+    info "Configuring user $CREATE_USER..."
 
     if ! cmd_getent passwd "$CREATE_USER" >/dev/null 2>&1; then
         run useradd -m -s /bin/bash "$CREATE_USER"
         created_now=yes
-        ok "Utilizatorul $CREATE_USER a fost creat (shell bash)."
+        ok "User $CREATE_USER was created (bash shell)."
     else
-        info "Utilizatorul $CREATE_USER există deja; îl reutilizez."
+        info "User $CREATE_USER already exists; reusing it."
     fi
 
     run usermod -aG sudo "$CREATE_USER"
@@ -1730,9 +1733,9 @@ configure_created_user() {
         if ssh_key_append_if_missing "$ak" "$key_line"; then
             run chmod 0600 "$ak"
             run chown "$target_user:$target_user" "$ak"
-            ok "Cheia SSH a fost instalată pentru $target_user."
+            ok "SSH key installed for $target_user."
         else
-            info "Cheia este deja în authorized_keys pentru $target_user; nu duplic."
+            info "Key already in authorized_keys for $target_user; not duplicating."
         fi
         run chown "$target_user:$target_user" "$home/.ssh"
         run chmod 0700 "$home/.ssh"
@@ -1741,9 +1744,9 @@ configure_created_user() {
 
     if [[ "$DRY_RUN" == "yes" ]]; then
         if [[ "$SUDO_NOPASSWD" == "yes" ]]; then
-            warn "--no-sudo-nopasswd: nu scriu sudoers și nu blochez parola; seteaz-o manual cu passwd."
+            warn "--no-sudo-nopasswd: not writing sudoers and not locking the password; set it manually with passwd."
         else
-            info "Scriu sudoers NOPASSWD pentru $CREATE_USER (validat cu visudo) și blochez parola."
+            info "Writing sudoers NOPASSWD for $CREATE_USER (validated with visudo) and locking the password."
         fi
         return 0
     fi
@@ -1758,9 +1761,9 @@ configure_created_user() {
     fi
 
     if [[ "$SUDO_NOPASSWD" == "yes" ]]; then
-        warn "--no-sudo-nopasswd: nu scriu sudoers și nu blochez parola; seteaz-o manual cu 'passwd $CREATE_USER'."
+        warn "--no-sudo-nopasswd: not writing sudoers and not locking the password; set it manually with 'passwd $CREATE_USER'."
     elif [[ "$created_now" != "yes" ]] && ! user_password_locked "$CREATE_USER"; then
-        warn "$CREATE_USER există cu parolă activă: nu blochez parola și nu acord NOPASSWD (folosește contul cum e sau gestionează-l manual)."
+        warn "$CREATE_USER has an active password: not locking the password and not granting NOPASSWD (use the account as is or manage it manually)."
     else
         if [[ "$can_lock" == "yes" ]]; then
             local sudoers_dir="${DS_SUDOERS_DIR:-/etc/sudoers.d}"
@@ -1771,15 +1774,15 @@ configure_created_user() {
             cmd_visudo -cf "$tmp" || visudo_rc=$?
             if [[ "$visudo_rc" != "0" ]]; then
                 rm -f "$tmp"
-                die 1 "Validarea sudoers a eșuat (visudo -cf); nu instalez $sudoers_file."
+                die 1 "sudoers validation failed (visudo -cf); not installing $sudoers_file."
             fi
             run install -d -m 0755 "$sudoers_dir"
             run install -m 0440 "$tmp" "$sudoers_file"
             rm -f "$tmp"
             run passwd -l "$CREATE_USER"
-            ok "$CREATE_USER: sudo NOPASSWD (sudoers validat) + parolă blocată."
+            ok "$CREATE_USER: sudo NOPASSWD (sudoers validated) + password locked."
         else
-            warn "$CREATE_USER: fără cheie validă instalată — nu blochez parola (risc de lockout); instalează o cheie sau seteaz-o manual."
+            warn "$CREATE_USER: no valid key installed — not locking the password (lockout risk); install a key or set it manually."
         fi
     fi
 }
@@ -1833,7 +1836,7 @@ configure_auto_updates() {
         return 0
     fi
 
-    info "Configurez actualizările automate de securitate..."
+    info "Configuring automatic security updates..."
 
     write_file /etc/apt/apt.conf.d/20auto-upgrades 0644 <<'EOF'
 APT::Periodic::Update-Package-Lists "1";
@@ -1852,7 +1855,7 @@ EOF
         # shellcheck disable=SC2016 # Expanded later by unattended-upgrades.
         origins_block='    "origin=Ubuntu,archive=${distro_codename}-security,label=Ubuntu";
     "origin=Ubuntu,archive=${distro_codename},label=Ubuntu";
-    // ESM (Ubuntu Pro): se activează manual cu ubuntu-advantage; neactivat e ignorat:
+    // ESM (Ubuntu Pro): enabled manually with ubuntu-advantage; ignored when not enabled:
     // "origin=UbuntuESM,archive=${distro_codename}-infra-security,label=UbuntuESM";'
     fi
 
@@ -1874,7 +1877,7 @@ EOF
     fi
 
     write_file /etc/apt/apt.conf.d/52-bootstrap-security 0644 <<EOF
-# Actualizări automate limitate la originile de securitate ale distribuției.
+# Automatic updates limited to the distribution's security origins.
 Unattended-Upgrade::Origins-Pattern {
 ${origins_block}
 };
@@ -1887,10 +1890,10 @@ ${extra_block}
 EOF
 
     run systemctl enable --now apt-daily.timer 2>/dev/null \
-        || warn "Nu am putut activa apt-daily.timer."
+        || warn "Could not enable apt-daily.timer."
     run systemctl enable --now apt-daily-upgrade.timer 2>/dev/null \
-        || warn "Nu am putut activa apt-daily-upgrade.timer."
-    ok "Actualizările automate de securitate sunt activate."
+        || warn "Could not enable apt-daily-upgrade.timer."
+    ok "Automatic security updates are enabled."
 }
 
 # B4: cheia Docker trebuie să aibă exact fingerprintul pinuit; mismatch → șterge + die.
@@ -1901,9 +1904,9 @@ verify_docker_key_fingerprint() {
     out="$(cmd_gpg --show-keys --with-colons "$keyfile" 2>/dev/null || true)"
     if ! grep -q "$DOCKER_GPG_FINGERPRINT" <<<"$out"; then
         run rm -f "$keyfile"
-        die 1 "Cheia Docker nu are fingerprintul așteptat (${DOCKER_GPG_FINGERPRINT}). Am șters $keyfile; verifică sursa/rețeaua (posibil MITM) și reia."
+        die 1 "The Docker key does not have the expected fingerprint (${DOCKER_GPG_FINGERPRINT}). I deleted $keyfile; check the source/network (possible MITM) and rerun."
     fi
-    log_write INFO "Cheia Docker verificată: fingerprint ${DOCKER_GPG_FINGERPRINT}"
+    log_write INFO "Docker key verified: fingerprint ${DOCKER_GPG_FINGERPRINT}"
 }
 
 # B4: cheia Tailscale doar validată ca PGP; fingerprint în log, FĂRĂ pin (rotație liberă).
@@ -1915,13 +1918,13 @@ verify_tailscale_key() {
     fpr="$(grep -E '^fpr:' <<<"$out" | awk -F: '{print $10}' | head -1)"
     if [[ -z "$fpr" ]]; then
         run rm -f "$keyfile"
-        die 1 "Cheia Tailscale nu este un keyring PGP valid; am șters $keyfile. Verifică sursa/rețeaua și reia."
+        die 1 "The Tailscale key is not a valid PGP keyring; I deleted $keyfile. Check the source/network and rerun."
     fi
-    log_write INFO "Cheie Tailscale validă (PGP), fingerprint: ${fpr} (fără pin, poate fi rotită)"
+    log_write INFO "Valid Tailscale key (PGP), fingerprint: ${fpr} (not pinned, may be rotated)"
 }
 
 setup_docker_repository() {
-    info "Configurez repository-ul oficial Docker stable..."
+    info "Configuring the official Docker stable repository..."
 
     run install -m 0755 -d /etc/apt/keyrings
     run curl -fsSL "${DOCKER_REPO_URL}/gpg" \
@@ -1929,7 +1932,7 @@ setup_docker_repository() {
     run chmod a+r /etc/apt/keyrings/docker.asc
 
     if [[ "$DRY_RUN" == "yes" ]]; then
-        info "La rularea reală: verific fingerprintul cheii Docker (${DOCKER_GPG_FINGERPRINT}) cu gpg --show-keys."
+        info "Real run: verifying the Docker key fingerprint (${DOCKER_GPG_FINGERPRINT}) with gpg --show-keys."
     else
         verify_docker_key_fingerprint /etc/apt/keyrings/docker.asc
     fi
@@ -1945,7 +1948,7 @@ EOF
 }
 
 setup_tailscale_repository() {
-    info "Configurez repository-ul oficial Tailscale stable..."
+    info "Configuring the official Tailscale stable repository..."
 
     run install -m 0755 -d /usr/share/keyrings
     run curl -fsSL "${TAILSCALE_REPO_URL}/${CODENAME}.noarmor.gpg" \
@@ -1953,7 +1956,7 @@ setup_tailscale_repository() {
     run chmod a+r /usr/share/keyrings/tailscale-archive-keyring.gpg
 
     if [[ "$DRY_RUN" == "yes" ]]; then
-        info "La rularea reală: validez cheia Tailscale ca PGP cu gpg --show-keys (fără pin)."
+        info "Real run: validating the Tailscale key as PGP with gpg --show-keys (not pinned)."
     else
         verify_tailscale_key /usr/share/keyrings/tailscale-archive-keyring.gpg
     fi
@@ -1962,7 +1965,7 @@ setup_tailscale_repository() {
     # ar produce „configured multiple times”; îl eliminăm
     local old_list="${DS_TAILSCALE_OLD_LIST:-/etc/apt/sources.list.d/tailscale.list}"
     if [[ -e "$old_list" ]]; then
-        log_write INFO "Elimin vechiul ${old_list} (înlocuit de tailscale.sources)"
+        log_write INFO "Removing old ${old_list} (replaced by tailscale.sources)"
         run rm -f "$old_list"
     fi
 
@@ -2002,22 +2005,22 @@ remove_docker_conflicts() {
     done
 
     if (( ${#present[@]} > 0 )); then
-        info "Elimin pachetele conflictuale cu Docker: ${present[*]}"
+        info "Removing packages that conflict with Docker: ${present[*]}"
         run apt-get "${APT_OPTS[@]}" remove "${present[@]}"
     else
-        log_write INFO "D1: nu există pachete conflictuale cu Docker"
+        log_write INFO "D1: no packages conflict with Docker"
     fi
 
     if command -v snap >/dev/null 2>&1 && cmd_snap list docker >/dev/null 2>&1; then
-        info "Elimin snap-ul docker..."
+        info "Removing the docker snap..."
         run snap remove docker
     fi
 }
 
 install_docker() {
-    info "Instalez Docker Engine, Buildx și Docker Compose plugin..."
+    info "Installing Docker Engine, Buildx and the Docker Compose plugin..."
     if [[ "$DOCKER_LXC_NO_NESTING" == "yes" ]]; then
-        warn "LXC neprivilegiat: Docker necesită nesting activat pe host (security.nesting=true); serviciul s-ar putea să nu pornească în guest."
+        warn "Unprivileged LXC: Docker requires nesting enabled on the host (security.nesting=true); the service may not start in the guest."
     fi
     run apt-get "${APT_OPTS[@]}" install \
         containerd.io \
@@ -2027,9 +2030,9 @@ install_docker() {
         docker-compose-plugin
     # B8: pornirea serviciului nu trebuie să aborteze instalarea
     if run systemctl enable --now docker.service; then
-        ok "Docker instalat."
+        ok "Docker installed."
     else
-        warn "Docker este instalat, dar serviciul nu a pornit; verifică nesting-ul (LXC) și 'journalctl -u docker'."
+        warn "Docker is installed but the service did not start; check nesting (LXC) and 'journalctl -u docker'."
     fi
 
     configure_docker_config
@@ -2101,24 +2104,24 @@ configure_docker_config() {
     local merged="" rc=0 stamp backup=""
 
     if [[ "$DRY_RUN" == "yes" ]]; then
-        info "Îmbin /etc/docker/daemon.json: log-opts 10m x 3, live-restore, no-new-privileges${DOCKER_POOL:+, default-address-pools din $DOCKER_POOL}${DOCKER_BIND_LOCALHOST:+, ip=127.0.0.1}; cheile existente ale utilizatorului se păstrează; restart docker doar dacă fișierul se schimbă."
+        info "Merging /etc/docker/daemon.json: log-opts 10m x 3, live-restore, no-new-privileges${DOCKER_POOL:+, default-address-pools from $DOCKER_POOL}${DOCKER_BIND_LOCALHOST:+, ip=127.0.0.1}; existing user keys are preserved; docker restart only if the file changes."
         return 0
     fi
 
     run install -d -m 0755 "$(dirname "$file")"
 
     if [[ -f "$file" ]] && ! cmd_python3 -m json.tool "$file" >/dev/null 2>&1; then
-        warn "daemon.json existent este JSON invalid; nu îl modific — corectează manual $file."
+        warn "Existing daemon.json is invalid JSON; not modifying it — fix $file manually."
         return 0
     fi
 
     merged="$(merge_docker_config "$file")" || rc=$?
     if [[ "$rc" == "1" ]]; then
-        warn "daemon.json existent nu este un obiect JSON valid; nu îl modific."
+        warn "Existing daemon.json is not a valid JSON object; not modifying it."
         return 0
     fi
     if [[ "$rc" == "2" ]]; then
-        info "daemon.json este deja la setările gestionate; docker nu este repornit."
+        info "daemon.json already has the managed settings; docker is not restarted."
         return 0
     fi
 
@@ -2133,16 +2136,16 @@ configure_docker_config() {
     if ! cmd_python3 -m json.tool "$file" >/dev/null 2>&1; then
         if [[ -n "$backup" && -f "$backup" ]]; then
             run cp -p "$backup" "$file"
-            warn "daemon.json scris era invalid; am restaurat backupul."
+            warn "daemon.json written was invalid; restored the backup."
         else
             run rm -f "$file"
-            warn "daemon.json scris era invalid; am șters fișierul nou."
+            warn "daemon.json written was invalid; deleted the new file."
         fi
-        die 1 "Validarea JSON a eșuat după scrierea $file."
+        die 1 "JSON validation failed after writing $file."
     fi
 
     run systemctl restart docker.service
-    ok "daemon.json actualizat (log rotation 10m x 3, live-restore, no-new-privileges); docker repornit."
+    ok "daemon.json updated (log rotation 10m x 3, live-restore, no-new-privileges); docker restarted."
 }
 
 # D4: opțional — adaugă un user existent în grupul docker (echivalent root)
@@ -2151,19 +2154,19 @@ configure_docker_user() {
         return 0
     fi
 
-    warn "$DOCKER_USER devine echivalent-root prin grupul docker (acces la /var/run/docker.sock)."
+    warn "$DOCKER_USER becomes root-equivalent through the docker group (access to /var/run/docker.sock)."
     run usermod -aG docker "$DOCKER_USER"
-    ok "Utilizatorul $DOCKER_USER este în grupul docker (relogare necesară)."
+    ok "User $DOCKER_USER is in the docker group (relogin required)."
 }
 
 install_tailscale() {
-    info "Instalez Tailscale stable..."
+    info "Installing Tailscale stable..."
     # F1: subcomanda 'install' lipsa → apt eșua pe mașină reală
     run apt-get "${APT_OPTS[@]}" install tailscale
     if run systemctl enable --now tailscaled.service; then
-        ok "Tailscale instalat și tailscaled pornit."
+        ok "Tailscale installed and tailscaled started."
     else
-        warn "Tailscale este instalat, dar tailscaled nu a pornit. Verifică /dev/net/tun și jurnalul serviciului, mai ales în LXC."
+        warn "Tailscale is installed but tailscaled did not start. Check /dev/net/tun and the service log, especially in LXC."
     fi
 }
 
@@ -2242,7 +2245,7 @@ EOF
             fi
             [[ -z "$backup90" ]] || rm -f "$backup90"
             [[ -z "$backup00" ]] || rm -f "$backup00"
-            die 1 "Configurația SSH este invalidă; modificările au fost anulate."
+            die 1 "SSH configuration is invalid; changes were rolled back."
         fi
         [[ -z "$backup90" ]] || rm -f "$backup90"
 
@@ -2251,16 +2254,16 @@ EOF
             if ! sshd_effective_keys_only; then
                 restore_ssh_dropin "$config_00" "$backup00" "$had00"
                 [[ -z "$backup00" ]] || rm -f "$backup00"
-                die 1 "sshd -T arată valori diferite de politica ssh-keys-only (passwordauthentication/kbdinteractiveauthentication/permitrootlogin); am restaurat $config_00. Verifică alte drop-in-uri (ex. 50-cloud-init.conf)."
+                die 1 "sshd -T shows values different from the ssh-keys-only policy (passwordauthentication/kbdinteractiveauthentication/permitrootlogin); restored $config_00. Check other drop-ins (e.g. 50-cloud-init.conf)."
             fi
-            ok "Politica ssh-keys-only este activă și efectivă (sshd -T)."
+            ok "The ssh-keys-only policy is active and effective (sshd -T)."
             [[ -z "$backup00" ]] || rm -f "$backup00"
         fi
     fi
 
     run systemctl enable --now ssh.service 2>/dev/null \
         || run systemctl enable --now sshd.service 2>/dev/null \
-        || warn "Nu am putut porni automat serviciul SSH."
+        || warn "Could not start the SSH service automatically."
 
     # B6: cu socket-activation (Debian 13 / Ubuntu >= 22.10) reload-ul serviciului
     # nu aplică nimic; se repornește ssh.socket și se verifică portul.
@@ -2276,7 +2279,7 @@ EOF
     fi
 
     if [[ "$DRY_RUN" != "yes" ]]; then
-        ok "Configurația SSH este validă."
+        ok "SSH configuration is valid."
     fi
 }
 
@@ -2286,17 +2289,17 @@ backup_ufw_before_reset() {
     stamp="$(date +%Y%m%d-%H%M%S)"
     backup_dir="/var/backups/ufw-$stamp"
 
-    info "Salvez regulile UFW existente înainte de reset..."
+    info "Saving the existing UFW rules before reset..."
     if [[ "$DRY_RUN" == "yes" ]]; then
         run ufw status numbered
     else
-        log_write INFO "ufw status numbered (înainte de reset):
+        log_write INFO "ufw status numbered (before reset):
 $(ufw status numbered 2>/dev/null || true)"
     fi
     run install -d -m 0700 "$backup_dir"
     run cp -a /etc/ufw "$backup_dir/"
     if [[ "$DRY_RUN" != "yes" ]]; then
-        ok "Backup UFW în $backup_dir."
+        ok "UFW backup in $backup_dir."
     fi
 }
 
@@ -2305,12 +2308,12 @@ set_ufw_ipv6() {
     local file="${DS_UFW_DEFAULT:-/etc/default/ufw}"
 
     if [[ -r "$file" ]] && grep -q '^IPV6=yes' "$file"; then
-        log_write INFO "IPV6=yes deja setat în $file"
+        log_write INFO "IPV6=yes already set in $file"
         return 0
     fi
 
     if [[ "$DRY_RUN" == "yes" ]]; then
-        printf '%s[DRY-RUN]%s setez IPV6=yes în %s\n' "${CYAN}" "${NC}" "$file"
+        printf '%s[DRY-RUN]%s setting IPV6=yes in %s\n' "${CYAN}" "${NC}" "$file"
         return 0
     fi
 
@@ -2320,18 +2323,18 @@ set_ufw_ipv6() {
         printf 'IPV6=yes\n' | run tee -a "$file" >/dev/null
     fi
     log_write WRITE "$file (IPV6=yes)"
-    ok "IPV6=yes în $file."
+    ok "IPV6=yes in $file."
 }
 
 configure_ufw() {
     local cidr
 
     if [[ "$SKIP_FIREWALL" == "yes" ]]; then
-        warn "Păstrez UFW nemodificat (omis explicit sau restricții de container)."
+        warn "Keeping UFW unchanged (explicitly skipped or container restrictions)."
         return 0
     fi
 
-    info "Configurez UFW..."
+    info "Configuring UFW..."
 
     if [[ "$RESET_FIREWALL" == "yes" ]]; then
         backup_ufw_before_reset
@@ -2359,7 +2362,7 @@ configure_ufw() {
 
     # Nu deschidem 80/443. Cloudflare Tunnel face conexiuni outbound.
     run ufw --force enable
-    ok "UFW activat; porturile publice $SSH_PORT, 80 și 443 nu sunt deschise global."
+    ok "UFW enabled; public ports $SSH_PORT, 80 and 443 are not open globally."
 }
 
 configure_fail2ban() {
@@ -2368,11 +2371,11 @@ configure_fail2ban() {
     fi
 
     if [[ "$SKIP_FIREWALL" == "yes" ]]; then
-        warn "Păstrez Fail2Ban nemodificat: integrarea UFW este omisă."
+        warn "Keeping Fail2Ban unchanged: the UFW integration is skipped."
         return 0
     fi
 
-    info "Configurez Fail2Ban pentru SSH..."
+    info "Configuring Fail2Ban for SSH..."
     run install -d -m 0755 /etc/fail2ban/jail.d
 
     # B3: ignoreip din CIDR-urile SSH + IP-ul sesiunii, dacă e cunoscut
@@ -2401,7 +2404,7 @@ EOF
     run systemctl restart fail2ban.service
 
     if [[ "$DRY_RUN" == "yes" ]]; then
-        ok "Fail2Ban activ pentru SSH."
+        ok "Fail2Ban active for SSH."
     else
         verify_fail2ban_jail
     fi
@@ -2410,9 +2413,9 @@ EOF
 # B2: după pornire, jail-ul sshd trebuie să fie activ
 verify_fail2ban_jail() {
     if cmd_fail2ban_client status sshd >/dev/null 2>&1; then
-        ok "Fail2Ban activ pentru SSH (jail sshd activ)."
+        ok "Fail2Ban active for SSH (sshd jail active)."
     else
-        warn "Fail2Ban rulează, dar jail-ul sshd nu răspunde; verifică 'fail2ban-client status sshd' și jurnalul."
+        warn "Fail2Ban is running but the sshd jail does not respond; check 'fail2ban-client status sshd' and the log."
     fi
 }
 
@@ -2426,7 +2429,7 @@ selection_is_noop() {
 
 bootstrap() {
     if selection_is_noop; then
-        info "Nicio modificare selectată; păstrez sistemul fără operații APT."
+        info "No changes selected; leaving the system without APT operations."
         return 0
     fi
     export DEBIAN_FRONTEND=noninteractive
@@ -2436,16 +2439,16 @@ bootstrap() {
         export NEEDRESTART_MODE=l
     fi
 
-    info "Actualizez indexul APT..."
+    info "Updating the APT index..."
     run apt-get "${APT_OPTS[@]}" update
 
     if [[ "$SKIP_UPGRADE" != "yes" ]]; then
-        info "Actualizez Debian (full-upgrade)..."
+        info "Upgrading Debian (full-upgrade)..."
         run apt-get "${APT_OPTS[@]}" full-upgrade
-        ok "Debian actualizat."
+        ok "Debian upgraded."
     fi
 
-    info "Instalez pachetele de bază..."
+    info "Installing the base packages..."
     local base_packages=(
         ca-certificates
         curl
@@ -2463,7 +2466,7 @@ bootstrap() {
         base_packages+=(unattended-upgrades)
     fi
     run apt-get "${APT_OPTS[@]}" install "${base_packages[@]}"
-    ok "Pachetele de bază sunt instalate."
+    ok "Base packages installed."
 
     configure_created_user
 
@@ -2481,7 +2484,7 @@ bootstrap() {
     fi
 
     if [[ "$INSTALL_DOCKER" == "yes" || "$INSTALL_TAILSCALE" == "yes" ]]; then
-        info "Actualizez indexul APT pentru repository-urile oficiale..."
+        info "Updating the APT index for the official repositories..."
         run apt-get "${APT_OPTS[@]}" update
     fi
 
@@ -2494,7 +2497,7 @@ bootstrap() {
     fi
 
     if [[ "$INSTALL_FAIL2BAN" == "yes" && "$SKIP_FIREWALL" != "yes" ]]; then
-        info "Instalez Fail2Ban..."
+        info "Installing Fail2Ban..."
         run apt-get "${APT_OPTS[@]}" install fail2ban
     fi
 
@@ -2505,7 +2508,7 @@ bootstrap() {
     # U-verificare fail-loud: originea de securitate trebuie să apară
     if [[ "$INSTALL_AUTO_UPDATES" == "yes" ]]; then
         if [[ "$DRY_RUN" == "yes" ]]; then
-            info "La final: verific că 'unattended-upgrade --dry-run --debug' listează ${CODENAME}-security."
+            info "At the end: checking that 'unattended-upgrade --dry-run --debug' lists ${CODENAME}-security."
         else
             verify_unattended_origins
         fi
@@ -2519,7 +2522,7 @@ bootstrap() {
 verify_installation() {
     echo
     echo "============================================================"
-    echo " VERIFICARE"
+    echo " VERIFICATION"
     echo "============================================================"
     echo
 
@@ -2565,78 +2568,78 @@ verify_installation() {
 svc_status() {
     local unit="$1"
     if [[ "$DRY_RUN" == "yes" ]]; then
-        printf 'planificat'
+        printf 'planned'
         return 0
     fi
     if cmd_systemctl is-active --quiet "$unit" 2>/dev/null; then
-        printf 'activ'
+        printf 'active'
     else
-        printf 'INACTIV'
+        printf 'INACTIVE'
     fi
 }
 
 final_notes() {
     echo
     echo "============================================================"
-    echo " DONE — REZUMAT"
+    echo " DONE — SUMMARY"
     echo "============================================================"
     echo
-    echo "Mod:            ${MODE:-?} (distro ${DISTRO:-?} / ${CODENAME:-?})"
-    echo "SSH config:     $([[ "$MANAGE_SSH" == "yes" ]] && echo gestionată || echo PĂSTRATĂ)"
+    echo "Mode:           ${MODE:-?} (distro ${DISTRO:-?} / ${CODENAME:-?})"
+    echo "SSH config:     $([[ "$MANAGE_SSH" == "yes" ]] && echo managed || echo KEPT)"
     if [[ "$SKIP_FIREWALL" == "yes" ]]; then
-        echo "SSH firewall:   PĂSTRAT; accesul existent nu a fost reconfigurat"
+        echo "SSH firewall:   KEPT; existing access was not reconfigured"
     else
-        echo "SSH:            port ${SSH_PORT}, permis din: ${SSH_CIDRS[*]}"
+        echo "SSH:            port ${SSH_PORT}, allowed from: ${SSH_CIDRS[*]}"
     fi
     if [[ -n "$WIREGUARD_IFACE" ]]; then
-        echo "                + regulă pe interfața ${WIREGUARD_IFACE}"
+        echo "                + rule on interface ${WIREGUARD_IFACE}"
     fi
-    echo "Servicii:"
+    echo "Services:"
     if [[ "$INSTALL_DOCKER" == "yes" ]]; then
-        echo "  docker:       instalat; serviciul: $(svc_status docker.service)"
+        echo "  docker:       installed; service: $(svc_status docker.service)"
     else
-        echo "  docker:       sărit"
+        echo "  docker:       skipped"
     fi
     if [[ "$INSTALL_TAILSCALE" == "yes" ]]; then
-        echo "  tailscale:    instalat; tailscaled: $(svc_status tailscaled.service)"
+        echo "  tailscale:    installed; tailscaled: $(svc_status tailscaled.service)"
     else
-        echo "  tailscale:    sărit"
+        echo "  tailscale:    skipped"
     fi
     if [[ "$SKIP_FIREWALL" == "yes" ]]; then
-        echo "  ufw:          PĂSTRAT (omis explicit / restricții container)"
+        echo "  ufw:          KEPT (explicitly skipped / container restrictions)"
     else
         echo "  ufw:          $(svc_status ufw.service)"
     fi
     if [[ "$INSTALL_FAIL2BAN" == "yes" && "$SKIP_FIREWALL" != "yes" ]]; then
         echo "  fail2ban:     $(svc_status fail2ban.service)"
     else
-        echo "  fail2ban:     sărit"
+        echo "  fail2ban:     skipped"
     fi
     echo
-    echo "Pași următori:"
+    echo "Next steps:"
     if [[ "$INSTALL_TAILSCALE" == "yes" ]]; then
-        echo "  - sudo tailscale up   (autentificarea Tailscale e manuală)"
+        echo "  - sudo tailscale up   (Tailscale authentication is manual)"
     fi
     if [[ -f /var/run/reboot-required ]]; then
-        echo "  - REBOOT NECESAR: /var/run/reboot-required există."
+        echo "  - REBOOT REQUIRED: /var/run/reboot-required exists."
     else
-        echo "  - verifică dacă e nevoie de reboot după update-uri (/var/run/reboot-required)."
+        echo "  - check whether a reboot is needed after updates (/var/run/reboot-required)."
     fi
     echo
-    echo "Avertismente:"
+    echo "Warnings:"
 
     if [[ "$INSTALL_DOCKER" == "yes" ]]; then
-        warn "Pentru Cloudflare Tunnel, evită ports: în Docker Compose; folosește aceeași rețea Docker cu aplicația."
-        warn "Docker poate ocoli regulile UFW pentru porturi publicate; nu publica porturi pe 0.0.0.0 fără o regulă explicită."
-        warn "Fără reguli DOCKER-USER automate: pentru filtrare pe container, adaugă-le manual (ex: iptables -I DOCKER-USER -i eth0 -p tcp --dport 5432 -j DROP)."
+        warn "For Cloudflare Tunnel, avoid ports: in Docker Compose; use the same Docker network as the application."
+        warn "Docker can bypass UFW rules for published ports; do not publish ports on 0.0.0.0 without an explicit rule."
+        warn "No automatic DOCKER-USER rules: for per-container filtering, add them manually (e.g. iptables -I DOCKER-USER -i eth0 -p tcp --dport 5432 -j DROP)."
     fi
 
     if [[ "$INSTALL_TAILSCALE" == "yes" ]]; then
-        warn "Tailscale nu este autentificat automat. Rulează: sudo tailscale up"
+        warn "Tailscale is not authenticated automatically. Run: sudo tailscale up"
     fi
 
     if [[ "$RESET_FIREWALL" != "yes" ]]; then
-        warn "Regulile UFW existente nu au fost șterse. Pentru o politică complet curată, folosește --reset-firewall pe un server pregătit pentru bootstrap."
+        warn "Existing UFW rules were not deleted. For a fully clean policy, use --reset-firewall on a server prepared for bootstrap."
     fi
 }
 
@@ -2675,7 +2678,7 @@ main() {
     log_write INFO "Start debian-setup.sh ${VERSION} (pid $$)"
 
     if [[ "$DRY_RUN" == "yes" ]]; then
-        info "Mod --dry-run: se afișează doar planul; nu se face nicio modificare."
+        info "--dry-run mode: only the plan is shown; nothing is changed."
     fi
 
     preflight
@@ -2685,8 +2688,8 @@ main() {
     if [[ "$DRY_RUN" != "yes" && "$NONINTERACTIVE" != "yes" ]]; then
         local apply_default=y
         [[ "$WIZARD" != "yes" ]] || apply_default=n
-        if ! yes_no "Aplic această configurație?" "$apply_default"; then
-            log_write INFO "Anulat de utilizator înainte de orice modificare"
+        if ! yes_no "Apply this configuration?" "$apply_default"; then
+            log_write INFO "Cancelled by the user before any change"
             exit 0
         fi
     fi
@@ -2698,7 +2701,7 @@ main() {
     fi
 
     final_notes
-    log_write INFO "Finalizat cu succes"
+    log_write INFO "Completed successfully"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

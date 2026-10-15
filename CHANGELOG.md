@@ -3,6 +3,17 @@
 Versions follow Semantic Versioning. Git tags use the `vMAJOR.MINOR.PATCH` format.
 A version in this file is not a claim of production or real-VM validation.
 
+## 2.7.1
+
+- Translate all Debian/Ubuntu errors, warnings, progress messages, prompts, help,
+  plan/verification/final summaries and generated explanatory text into English.
+- Preserve CLI flags, config keys, command behavior, exit codes, placeholders and
+  the legacy `da` yes-answer alias. Internal comments/test descriptions may remain
+  Romanian; the script's user interface is English.
+- Update exact output assertions and add an English wizard-output regression.
+- Validation: 208 legacy checks and 37 guided checks passed; Bash syntax and
+  ShellCheck passed. No live setup or VM behavior changed or newly validated.
+
 ## 2.7.0
 
 First guided-setup increment; not the completion of the full upgrade plan.

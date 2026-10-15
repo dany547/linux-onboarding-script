@@ -22,7 +22,7 @@ def run(code, expected='', rc=0, stdin=''):
     passed += 1
 
 # No implicit execution when sourced; CLI/config sources suppress questions.
-run('printf "%s" "$VERSION"', '2.7.0')
+run('printf "%s" "$VERSION"', '2.7.1')
 run('parse_args --no-docker --no-tailscale --no-fail2ban --no-auto-updates; '
     'yes_no() { return 99; }; resolve_feature_flags; '
     'printf "%s" "$INSTALL_DOCKER:$INSTALL_TAILSCALE:$INSTALL_FAIL2BAN:$INSTALL_AUTO_UPDATES"',
@@ -39,7 +39,7 @@ run('WIZARD=yes; DRY_RUN=yes; resolve_mode >/dev/null', rc=2)
 run('WIZARD=yes; DRY_RUN=yes; MODE=lan; resolve_lan_cidr', rc=2)
 run('WIZARD=yes; DRY_RUN=yes; resolve_wireguard_cidr', rc=2, stdin='y\n')
 run('export DS_UNTRUSTED_OVERRIDE=1; main --inspect', rc=2)
-run('SKIP_FIREWALL=yes; print_plan_summary | grep -q "reguli existente, neverificate"; printf clear', 'clear')
+run('SKIP_FIREWALL=yes; print_plan_summary | grep -q "existing rules, unverified"; printf clear', 'clear')
 run('parse_args --wizard --yes; validate_selection', rc=2)
 run('parse_args --no-ssh --ssh-keys-only; validate_selection', rc=2)
 run('parse_args --no-ssh --allow-users admin; validate_selection', rc=2)
@@ -96,10 +96,16 @@ with tempfile.TemporaryDirectory(prefix='onboarding-guided-') as directory:
     result = subprocess.run(['bash', str(script), '--wizard', '--dry-run', '--mode', 'lan'],
                             input='\n'*7, text=True, capture_output=True, env=env)
     assert result.returncode == 0, (result.stdout, result.stderr)
-    assert 'Configurație SSH:        no' in result.stdout
-    assert 'Upgrade Debian:          NU' in result.stdout
+    assert 'SSH configuration:      no' in result.stdout
+    assert 'Upgrade Debian:          NO' in result.stdout
     assert 'ufw enable' not in result.stdout and 'sshd_config.d/' not in result.stdout
     assert 'apt-get ' not in result.stdout
+    passed += 1
+    # UI language regression: stdout must stay free of Romanian UI markers.
+    assert not any(ch in result.stdout for ch in 'ăâîșțĂÂÎȘȚ'), result.stdout
+    for marker in ['Intrare închisă', 'Lipsește valoarea', 'REZUMAT', 'planificat',
+                   'Configurație', 'Avertismente', 'Pași următori']:
+        assert marker not in result.stdout, marker
     passed += 1
     # EOF never silently accepts yes/default actions.
     result = subprocess.run(['bash', str(script), '--wizard', '--dry-run', '--mode', 'lan'],

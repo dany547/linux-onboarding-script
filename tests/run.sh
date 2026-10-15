@@ -335,7 +335,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/bin-novirt:$PATH" \
     DS_SSH_SOURCE=203.0.113.7 DS_ROOT_OK=1 \
     DS_OS_RELEASE="$FIXTURES/os-release.debian12" bash "$SCRIPT" --dry-run -y --mode lan \
     --lan-cidr 192.168.1.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" 'se cere confirmare explicită sau --allow-current-ssh'; then
+if [[ "$rc" == "0" ]] && contains "$out" 'a real run requires explicit confirmation or --allow-current-ssh'; then
     t_pass "F2: sesiune SSH neacoperită în dry-run → warn, rc 0"
 else
     t_fail "F2: sesiune SSH neacoperită în dry-run → warn, rc 0 (rc=$rc)"
@@ -396,7 +396,7 @@ printf 'dan     pts/0        2026-09-29 09:00 (192.0.2.77)\n' >"$TMP_RUN/who-ip"
 out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/mocks:$PATH" DS_SSH_CHAIN=none \
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 192.168.1.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" "Sesiune SSH detectată:   no" && ! contains "$out" "SSH curent din"; then
+if [[ "$rc" == "0" ]] && contains "$out" "SSH session detected:    no" && ! contains "$out" "Current SSH from"; then
     t_pass "B1: env lipsă, fără sesiune SSH → exit 0, fără IP"
 else
     t_fail "B1: env lipsă, fără sesiune SSH → exit 0, fără IP (rc=$rc)"
@@ -406,8 +406,8 @@ fi
 out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/mocks:$PATH" DS_SSH_CHAIN=none \
     DS_SSH_SOURCE=203.0.113.9 DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 203.0.113.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" "SSH curent din:          203.0.113.9" \
-    && contains "$out" "Sesiune SSH detectată:   yes"; then
+if [[ "$rc" == "0" ]] && contains "$out" "Current SSH from:        203.0.113.9" \
+    && contains "$out" "SSH session detected:    yes"; then
     t_pass "B1: DS_SSH_SOURCE → IP sesiune detectat"
 else
     t_fail "B1: DS_SSH_SOURCE → IP sesiune detectat (rc=$rc)"
@@ -419,7 +419,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/mocks:$PATH" \
     DS_CMD_SSHD="$TMP_RUN/mocks/fake-sshd" FAKE_SSHD_FILE="$TMP_RUN/sshd-t-2222" \
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 198.51.100.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" "SSH curent din:          198.51.100.7" \
+if [[ "$rc" == "0" ]] && contains "$out" "Current SSH from:        198.51.100.7" \
     && contains "$out" "to any port 2222" && contains "$out" "port = 2222"; then
     t_pass "B1/B6: sudo simulat → IP din ss + port 2222 din sshd -T"
 else
@@ -442,7 +442,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/mocks:$PATH" \
     DS_SSHD_PID=4242 DS_CMD_SS="$TMP_RUN/mocks/fake-ss" FAKE_SS_FILE="$TMP_RUN/ss-withpid" \
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" 'se cere confirmare explicită sau --allow-current-ssh'; then
+if [[ "$rc" == "0" ]] && contains "$out" 'a real run requires explicit confirmation or --allow-current-ssh'; then
     t_pass "B1/F2: sub-sudo, sesiune neacoperită, dry-run → warn + rc 0"
 else
     t_fail "B1/F2: sub-sudo, sesiune neacoperită, dry-run → warn + rc 0 (rc=$rc)"
@@ -458,7 +458,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/mocks:$PATH" \
     DS_SSHD_PID=4242 DS_CMD_SS="$TMP_RUN/mocks/fake-ss" FAKE_SS_FILE="$TMP_RUN/ss-nopid-one" \
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 203.0.113.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" "SSH curent din:          203.0.113.55"; then
+if [[ "$rc" == "0" ]] && contains "$out" "Current SSH from:        203.0.113.55"; then
     t_pass "B1: ss fără PID, conexiune unică → IP detectat"
 else
     t_fail "B1: ss fără PID, conexiune unică → IP detectat (rc=$rc)"
@@ -477,7 +477,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/mocks:$PATH" \
     FAKE_WHO_FILE="$TMP_RUN/who-ip" \
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 192.0.2.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" "SSH curent din:          192.0.2.77"; then
+if [[ "$rc" == "0" ]] && contains "$out" "Current SSH from:        192.0.2.77"; then
     t_pass "B1: fallback who -m → IP detectat"
 else
     t_fail "B1: fallback who -m → IP detectat (rc=$rc)"
@@ -566,9 +566,9 @@ smoke_has "B5: regulă interfață tailscale0"   "ufw allow in on tailscale0 to 
 smoke_has "B6: fallback port 22"          "to any port 22"
 smoke_has "B3: ignoreip din SSH_CIDRS"    "ignoreip = 127.0.0.1/8 ::1 192.168.1.0/24 10.8.0.0/24 100.64.0.0/10 fd7a:115c:a1e0::/48"
 smoke_has "C3/B4: docker.sources Signed-By"   "Signed-By: /etc/apt/keyrings/docker.asc"
-smoke_has "C3/B4/R2: tailscale.sources scris local"  "scriu /etc/apt/sources.list.d/tailscale.sources"
+smoke_has "C3/B4/R2: tailscale.sources scris local"  "write /etc/apt/sources.list.d/tailscale.sources"
 smoke_has "C3/B4: cheie Tailscale încă descărcată"  "bookworm.noarmor.gpg"
-smoke_has "C3/B4: info verificare fingerprint Docker"  "verific fingerprintul cheii Docker"
+smoke_has "C3/B4: info verificare fingerprint Docker"  "verifying the Docker key fingerprint"
 smoke_has "C3/B2: jail backend systemd"       "backend = systemd"
 smoke_has "C3/B2: python3-systemd în pachete"  "python3-systemd"
 smoke_has "C3: gnupg în pachete de bază"       "gnupg"
@@ -586,7 +586,7 @@ if contains "$SMOKE" "/etc/docker/daemon.json" && contains "$SMOKE" "live-restor
 else
     t_fail "C4: planifică merge daemon.json (log rotation, live-restore, no-new-privileges)"
 fi
-if [[ "$SMOKE_RC" == "0" ]] && ! contains "$SMOKE" "Aplic această configurație?"; then
+if [[ "$SMOKE_RC" == "0" ]] && ! contains "$SMOKE" "Apply this configuration?"; then
     t_pass "fără confirmare interactivă"
 else
     t_fail "fără confirmare interactivă"
@@ -624,7 +624,7 @@ fi
 
 SMOKE_M="$(env -u SSH_CONNECTION -u SSH_CLIENT DS_SSH_CHAIN=none DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.linuxmint" \
     bash "$SCRIPT" --dry-run -y --mode lan 2>&1)"
-if [[ "$?" == "0" ]] && contains "$SMOKE_M" "Derivat Ubuntu detectat"; then
+if [[ "$?" == "0" ]] && contains "$SMOKE_M" "Ubuntu derivative detected"; then
     t_pass "smoke linuxmint: exit 0 cu warn de derivat"
 else
     t_fail "smoke linuxmint: exit 0 cu warn de derivat"
@@ -632,7 +632,7 @@ fi
 
 SMOKE_R="$(env -u SSH_CONNECTION -u SSH_CLIENT DS_SSH_CHAIN=none DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.raspbian" \
     bash "$SCRIPT" --dry-run -y --mode lan 2>&1)"
-if [[ "$?" == "0" ]] && contains "$SMOKE_R" "Derivat Debian detectat"; then
+if [[ "$?" == "0" ]] && contains "$SMOKE_R" "Debian derivative detected"; then
     t_pass "smoke raspbian: exit 0 cu warn de derivat"
 else
     t_fail "smoke raspbian: exit 0 cu warn de derivat"
@@ -657,7 +657,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/bin-novirt:$PATH" DS_S
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 192.168.1.0/24 --wireguard-iface wg0 2>&1)"; rc=$?
 if [[ "$rc" == "0" ]] && contains "$out" "ufw allow in on wg0 to any port 22" \
     && contains "$out" "ufw allow in on tailscale0 to any port 22" \
-    && contains "$out" "Interfață WireGuard:     wg0"; then
+    && contains "$out" "WireGuard interface:     wg0"; then
     t_pass "B5: --wireguard-iface wg0 → regulă adăugată peste (tailscale0 rămâne)"
 else
     t_fail "B5: --wireguard-iface wg0 → regulă adăugată peste (tailscale0 rămâne) (rc=$rc)"
@@ -692,7 +692,7 @@ check_sub "B5: vps cu --allow-current-ssh (CIDR /32) → OK" "OK" 0 "$out" "$rc"
 out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/mocks:$PATH" DS_SSH_CHAIN=none \
     DS_SSH_SOURCE=203.0.113.50 DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode vps 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" "se cere confirmare explicită sau --allow-current-ssh"; then
+if [[ "$rc" == "0" ]] && contains "$out" "a real run requires explicit confirmation or --allow-current-ssh"; then
     t_pass "B5: vps dry-run, sesiune neacoperită → warn, planul continuă"
 else
     t_fail "B5: vps dry-run, sesiune neacoperită → warn, planul continuă (rc=$rc)"
@@ -727,7 +727,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/bin-novirt:$PATH" DS_S
     DS_UFW_DEFAULT="$FIXTURES/ufw-default.ipv6no" \
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 192.168.1.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" "setez IPV6=yes în $FIXTURES/ufw-default.ipv6no"; then
+if [[ "$rc" == "0" ]] && contains "$out" "setting IPV6=yes in $FIXTURES/ufw-default.ipv6no"; then
     t_pass "B7: IPV6=no → planifică IPV6=yes"
 else
     t_fail "B7: IPV6=no → planifică IPV6=yes (rc=$rc)"
@@ -737,7 +737,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/bin-novirt:$PATH" DS_S
     DS_UFW_DEFAULT="$FIXTURES/ufw-default.ipv6yes" \
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 192.168.1.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && ! contains "$out" "setez IPV6=yes"; then
+if [[ "$rc" == "0" ]] && ! contains "$out" "setting IPV6=yes"; then
     t_pass "B7: IPV6=yes deja setat → idempotent, fără modificare"
 else
     t_fail "B7: IPV6=yes deja setat → idempotent, fără modificare (rc=$rc)"
@@ -834,7 +834,7 @@ if [[ "$rc" == "0" ]] \
     && contains "$out" 'URIs: https://pkgs.tailscale.com/stable/ubuntu' \
     && contains "$out" 'Signed-By: /usr/share/keyrings/tailscale-archive-keyring.gpg' \
     && ! contains "$out" 'tailscale-keyring.list' \
-    && ! contains "$out" 'scriu /etc/apt/sources.list.d/tailscale.list'; then
+    && ! contains "$out" 'write /etc/apt/sources.list.d/tailscale.list'; then
     t_pass "B4: .sources docker+tailscale pe ubuntu24.04, deb822 local"
 else
     t_fail "B4: .sources docker+tailscale pe ubuntu24.04, deb822 local (rc=$rc)"
@@ -940,7 +940,7 @@ rc=0
     export DS_CMD_UNATTENDED="$TMP_RUN/mocks/fake-ua" FAKE_UA_FILE="$TMP_RUN/ua-ok"
     verify_unattended_origins
 ) >"$TMP_RUN/ua-test.out" 2>&1 || rc=$?
-if [[ "$rc" == "0" && "$(cat "$TMP_RUN/ua-test.out")" == *'folosește originea de securitate'* ]]; then
+if [[ "$rc" == "0" && "$(cat "$TMP_RUN/ua-test.out")" == *'uses the distribution security origin'* ]]; then
     t_pass "C3/U: verificare unattended reușită → ok"
 else
     t_fail "C3/U: verificare unattended reușită → ok (rc=$rc)"
@@ -972,7 +972,7 @@ rc=0
     export DS_CMD_UNATTENDED="$TMP_RUN/mocks/fake-ua" FAKE_UA_FILE="$TMP_RUN/ua-bad"
     verify_unattended_origins
 ) >"$TMP_RUN/ua-warn.out" 2>&1 || rc=$?
-if [[ "$rc" == "0" && "$(cat "$TMP_RUN/ua-warn.out")" == *'VERIFICARE UNATTENDED'* ]]; then
+if [[ "$rc" == "0" && "$(cat "$TMP_RUN/ua-warn.out")" == *'UNATTENDED CHECK'* ]]; then
     t_pass "C3/U: lipsă origine fără --strict → warn, rc 0"
 else
     t_fail "C3/U: lipsă origine fără --strict → warn, rc 0 (rc=$rc)"
@@ -994,7 +994,7 @@ rc=0
     export DS_CMD_FAIL2BAN_CLIENT="$TMP_RUN/mocks/fake-f2b" FAKE_F2B=0
     verify_fail2ban_jail
 ) >"$TMP_RUN/f2b-ok.out" 2>&1 || rc=$?
-if [[ "$rc" == "0" && "$(cat "$TMP_RUN/f2b-ok.out")" == *'jail sshd activ'* ]]; then
+if [[ "$rc" == "0" && "$(cat "$TMP_RUN/f2b-ok.out")" == *'sshd jail active'* ]]; then
     t_pass "B2: jail sshd activ → ok"
 else
     t_fail "B2: jail sshd activ → ok (rc=$rc)"
@@ -1007,7 +1007,7 @@ rc=0
     export DS_CMD_FAIL2BAN_CLIENT="$TMP_RUN/mocks/fake-f2b" FAKE_F2B=1
     verify_fail2ban_jail
 ) >"$TMP_RUN/f2b-bad.out" 2>&1 || rc=$?
-if [[ "$rc" == "0" && "$(cat "$TMP_RUN/f2b-bad.out")" == *'nu răspunde'* ]]; then
+if [[ "$rc" == "0" && "$(cat "$TMP_RUN/f2b-bad.out")" == *'does not respond'* ]]; then
     t_pass "B2: jail sshd pasiv → warn"
 else
     t_fail "B2: jail sshd pasiv → warn (rc=$rc)"
@@ -1052,7 +1052,7 @@ out="$(
     install_docker 2>/dev/null
     printf 'DONE'
 )"; rc=$?
-if [[ "$rc" == "0" && "$out" == *DONE ]] && contains "$out" 'serviciul nu a pornit'; then
+if [[ "$rc" == "0" && "$out" == *DONE ]] && contains "$out" 'the service did not start'; then
     t_pass "B8: systemctl picat → warn, instalarea continuă"
 else
     t_fail "B8: systemctl picat → warn, instalarea continuă (rc=$rc)"
@@ -1221,7 +1221,7 @@ C4BAD="$(
         printf 'CONTENT:%s' "$(cat "$DS_DOCKER_DAEMON")"
     ) 2>&1
 )" || rc=$?
-if [[ "$rc" == "0" && "$C4BAD" == *'JSON invalid'* && "$C4BAD" == *'CONTENT:not-json{{' ]]; then
+if [[ "$rc" == "0" && "$C4BAD" == *'invalid JSON'* && "$C4BAD" == *'CONTENT:not-json{{' ]]; then
     t_pass "C4: fișier existent invalid → warn, nu scrie nimic, continuă"
 else
     t_fail "C4: fișier existent invalid → warn, nu scrie nimic, continuă (rc=$rc)"
@@ -1382,7 +1382,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/bin-novirt:$PATH" DS_S
 if [[ "$rc" == "0" ]] \
     && contains "$out" 'useradd -m -s /bin/bash c5user' \
     && contains "$out" 'usermod -aG sudo c5user' \
-    && contains "$out" 'Scriu sudoers NOPASSWD pentru c5user' \
+    && contains "$out" 'Writing sudoers NOPASSWD for c5user' \
     && contains "$out" '0700' && contains "$out" '0600'; then
     t_pass "C5/A1: plan user creat (sudo, parolă blocată, permisiuni .ssh)"
 else
@@ -1478,7 +1478,7 @@ C5A3="$(
         configure_ssh
     ) 2>&1
 )" || rc=$?
-if [[ "$rc" == "1" ]] && contains "$C5A3" 'sshd -T arată valori diferite' \
+if [[ "$rc" == "1" ]] && contains "$C5A3" 'sshd -T shows values different' \
     && [[ ! -f "$TMP_RUN/sshd.d/00-bootstrap-security.conf" ]]; then
     t_pass "C5/A3: valori efective greșite → rollback (00- șters) + exit 1"
 else
@@ -1661,7 +1661,7 @@ out="$(
     warn_uncovered_established
 )" 2>&1 || rc=$?
 if [[ "$rc" == "0" ]] && contains "$out" '203.0.113.9 198.51.100.7' \
-    && contains "$out" 'neacoperite de CIDR-urile permise'; then
+    && contains "$out" 'not covered by the allowed CIDRs'; then
     t_pass "R1: established neacoperite → warn vizibil cu IP-urile"
 else
     t_fail "R1: established neacoperite → warn vizibil cu IP-urile (rc=$rc)"
@@ -1676,7 +1676,7 @@ out="$(
     collect_established_peers
     warn_uncovered_established
 )" 2>&1 || rc=$?
-if [[ "$rc" == "0" ]] && ! contains "$out" 'neacoperite'; then
+if [[ "$rc" == "0" ]] && ! contains "$out" 'not covered by the allowed CIDRs'; then
     t_pass "R1: surse acoperite → fără warn"
 else
     t_fail "R1: surse acoperite → fără warn (rc=$rc)"
@@ -1689,7 +1689,7 @@ out="$(
     SSH_ESTABLISHED_PEERS='203.0.113.9 '
     warn_uncovered_established
 )" 2>&1 || rc=$?
-if [[ "$rc" == "0" ]] && ! contains "$out" 'neacoperite'; then
+if [[ "$rc" == "0" ]] && ! contains "$out" 'not covered by the allowed CIDRs'; then
     t_pass "R1: sesiune SSH confirmată → fallback-ul nu se aplică"
 else
     t_fail "R1: sesiune SSH confirmată → fallback-ul nu se aplică (rc=$rc)"
@@ -1700,7 +1700,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/mocks:$PATH" DS_SSH_CH
     DS_CMD_SS="$TMP_RUN/mocks/fake-ss" FAKE_SS_FILE="$TMP_RUN/ss-two" \
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 192.168.1.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" 'neacoperite de CIDR-urile permise: 203.0.113.9 198.51.100.7'; then
+if [[ "$rc" == "0" ]] && contains "$out" 'not covered by the allowed CIDRs: 203.0.113.9 198.51.100.7'; then
     t_pass "R1: integrare dry-run → warn, rularea continuă (exit 0)"
 else
     t_fail "R1: integrare dry-run → warn, rularea continuă (rc=$rc)"
@@ -1710,10 +1710,10 @@ fi
 out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/bin-novirt:$PATH" DS_SSH_CHAIN=none \
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode vps --skip-upgrade 2>&1)"; rc=$?
-ord_ts=$(line_of "$out" 'scriu /etc/apt/sources.list.d/tailscale.sources')
+ord_ts=$(line_of "$out" 'write /etc/apt/sources.list.d/tailscale.sources')
 first_block="$(printf '%s\n' "$out" | tail -n +$((ord_ts + 1)) | grep -m1 '^    | ')"
 if [[ "$rc" == "0" && "$ord_ts" -gt 0 && "$first_block" == '    | Types: deb' ]] \
-    && ! contains "$out" 'scriu /etc/apt/sources.list.d/tailscale.list'; then
+    && ! contains "$out" 'write /etc/apt/sources.list.d/tailscale.list'; then
     t_pass "R2: tailscale.sources deb822 (începe cu 'Types:'), fără .list nou"
 else
     t_fail "R2: tailscale.sources deb822 (rc=$rc, ord=$ord_ts, first=«$first_block»)"
@@ -1746,7 +1746,7 @@ out="$(
     printf '|%s|%s' "$DISTRO" "$CODENAME"
 )" 2>&1; rc=$?
 if [[ "$rc" == "0" ]] && contains "$out" 'debian|kali-rolling' \
-    && contains "$out" "nu e în lista cunoscută"; then
+    && contains "$out" "is not in the known list"; then
     t_pass "R3: kali (derivat, codename necunoscut) → warn + debian/kali-rolling"
 else
     t_fail "R3: kali (derivat, codename necunoscut) → warn + debian/kali-rolling (rc=$rc)"
@@ -1768,7 +1768,7 @@ out="$(
     detect_distro
     printf 'OK'
 )" 2>&1; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" 'OK' && ! contains "$out" 'nu e în lista cunoscută'; then
+if [[ "$rc" == "0" ]] && contains "$out" 'OK' && ! contains "$out" 'is not in the known list'; then
     t_pass "R3: raspbian (bookworm cunoscut) → fără warn"
 else
     t_fail "R3: raspbian (bookworm cunoscut) → fără warn (rc=$rc)"
@@ -1838,13 +1838,13 @@ out="$(
     final_notes
 )" 2>&1; rc=$?
 if [[ "$rc" == "0" ]] \
-    && contains "$out" 'DONE — REZUMAT' \
-    && contains "$out" 'Mod:            lan' \
-    && contains "$out" 'port 22, permis din: 192.168.1.0/24' \
-    && contains "$out" 'docker:       instalat' \
-    && contains "$out" 'tailscale:    instalat' \
-    && contains "$out" 'ufw:          planificat' \
-    && contains "$out" 'fail2ban:     planificat' \
+    && contains "$out" 'DONE — SUMMARY' \
+    && contains "$out" 'Mode:           lan' \
+    && contains "$out" 'port 22, allowed from: 192.168.1.0/24' \
+    && contains "$out" 'docker:       installed' \
+    && contains "$out" 'tailscale:    installed' \
+    && contains "$out" 'ufw:          planned' \
+    && contains "$out" 'fail2ban:     planned' \
     && contains "$out" 'sudo tailscale up' \
     && contains "$out" '/var/run/reboot-required' \
     && contains "$out" '0.0.0.0' \
@@ -2083,7 +2083,7 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT SUDO_USER=alice PATH="$TMP_RUN/bin-no
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode vps --create-user admin \
     --ssh-key 'ssh-ed25519 AAAATEST x' --ssh-keys-only --allow-users alice 2>&1)"; rc=$?
-if [[ "$rc" == "4" ]] && contains "$out" 'Precondiția --ssh-keys-only nu este îndeplinită'; then
+if [[ "$rc" == "4" ]] && contains "$out" 'Precondition --ssh-keys-only not met'; then
     t_pass "F3: keys-only + --allow-users care exclude tot → exit 4"
 else
     t_fail "F3: keys-only + --allow-users care exclude tot → exit 4 (rc=$rc)"
@@ -2110,7 +2110,7 @@ out="$(env SSH_CONNECTION='203.0.113.9 50000 10.0.0.1 22' SUDO_USER=alice PATH="
     bash "$SCRIPT" --dry-run -y --mode vps --create-user admin \
     --ssh-key 'ssh-ed25519 AAAATEST x' --ssh-keys-only --allow-users alice,admin \
     --lan-cidr 192.168.1.0/24 2>&1)"; rc=$?
-if [[ "$rc" == "4" ]] && contains "$out" "contul curent 'alice'"; then
+if [[ "$rc" == "4" ]] && contains "$out" "the current account 'alice'"; then
     t_pass "F3: sesiune SSH ca user fără cheie → exit 4 cu mesaj"
 else
     t_fail "F3: sesiune SSH ca user fără cheie → exit 4 cu mesaj (rc=$rc)"
@@ -2168,7 +2168,7 @@ C7F4B="$(
     ) 2>&1
 )" || rc=$?
 if [[ "$rc" == "0" && ! -f "$TMP_RUN/sudoers.d/90-bootstrap-c7user" \
-    && "$C7F4B" == *'parolă activă: nu blochez parola și nu acord NOPASSWD'* ]]; then
+    && "$C7F4B" == *'active password: not locking the password and not granting NOPASSWD'* ]]; then
     t_pass "F4: user existent cu parolă activă → fără sudoers, fără blocare"
 else
     t_fail "F4: user existent cu parolă activă → fără sudoers, fără blocare (rc=$rc)"
@@ -2180,8 +2180,8 @@ out="$(env -u SSH_CONNECTION -u SSH_CLIENT PATH="$TMP_RUN/bin-novirt:$PATH" DS_S
     DS_ROOT_OK=1 DS_OS_RELEASE="$FIXTURES/os-release.debian12" \
     bash "$SCRIPT" --dry-run -y --mode lan --lan-cidr 192.168.1.0/24 \
     --create-user c7user --ssh-key 'ssh-ed25519 AAAATEST x' --no-sudo-nopasswd 2>&1)"; rc=$?
-if [[ "$rc" == "0" ]] && contains "$out" 'nu scriu sudoers' \
-    && ! contains "$out" 'Scriu sudoers NOPASSWD'; then
+if [[ "$rc" == "0" ]] && contains "$out" 'not writing sudoers' \
+    && ! contains "$out" 'Writing sudoers NOPASSWD'; then
     t_pass "F4: --no-sudo-nopasswd → fără sudoers, fără blocare, cu warn"
 else
     t_fail "F4: --no-sudo-nopasswd → fără sudoers, fără blocare, cu warn (rc=$rc)"
