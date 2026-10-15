@@ -1,0 +1,9 @@
+PRETTY_NAME="Ubuntu 25.04"
+NAME="Ubuntu"
+VERSION_ID="25.04"
+VERSION="25.04 (Plucky Puffin)"
+VERSION_CODENAME=plucky
+ID=ubuntu
+ID_LIKE=debian
+UBUNTU_CODENAME=plucky
+HOME_URL="https://www.ubuntu.com/"

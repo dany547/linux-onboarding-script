@@ -1,0 +1,21 @@
+name: Shell checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Syntax and static analysis
+        run: |
+          bash -n debian-setup.sh
+          bash -n tests/run.sh
+          shellcheck debian-setup.sh
+      - name: Mocked regression suite (no real host setup)
+        run: bash tests/run.sh
